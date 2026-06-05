@@ -631,27 +631,30 @@ function PerpCore.RotateAOEClockwise(x, y, z, heading, center)
     return rx, rz, h
 end
 
--- Draw a filled Argus2 shape matching an AOE cast type, in a solid colour.
-function PerpCore.DrawAOEShape(color, x, y, z, castType, length, width, heading, ms)
+-- Draw a filled Argus2 shape matching an AOE cast type, in a solid colour. Optional renderFlags
+-- (e.g. Argus2.RenderFlags.FLAG_OCCLUDE) is threaded through to the underlying draw so the same
+-- helper can be used for normal fills and subtractive/occlusion (negative-space) draws.
+function PerpCore.DrawAOEShape(color, x, y, z, castType, length, width, heading, ms, renderFlags)
     if not Argus2 then return end
     local ct  = tonumber(castType) or 0
     local L   = tonumber(length) or 0
     local W   = tonumber(width) or 0
     local h   = tonumber(heading) or 0
+    local rf  = renderFlags
     local SEG = 48
     if ct == 2 or ct == 5 or ct == 7 or ct == 6 then
-        Argus2.addTimedCircleFilled(ms, x, y, z, L, SEG, color, color, nil, 0, nil, nil, nil, 3)
+        Argus2.addTimedCircleFilled(ms, x, y, z, L, SEG, color, color, nil, 0, nil, nil, nil, 3, nil, nil, nil, rf)
     elseif ct == 3 or ct == 13 then
-        Argus2.addTimedConeFilled(ms, x, y, z, L, math.rad(90), h, SEG, color, color, nil, 0, nil, nil, nil, nil, 4)
+        Argus2.addTimedConeFilled(ms, x, y, z, L, math.rad(90), h, SEG, color, color, nil, 0, nil, nil, nil, nil, 4, nil, nil, nil, nil, nil, rf)
     elseif ct == 4 or ct == 12 or ct == 8 then
-        Argus2.addTimedRectFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, false, nil, nil, 4)
+        Argus2.addTimedRectFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, false, nil, nil, 4, nil, nil, nil, nil, nil, rf)
     elseif ct == 10 then
         local inner = W > 0 and W or (L * 0.4)
-        Argus2.addTimedDonutFilled(ms, x, y, z, inner, L, SEG, color, color, nil, 0, nil, nil, nil, 2)
+        Argus2.addTimedDonutFilled(ms, x, y, z, inner, L, SEG, color, color, nil, 0, nil, nil, nil, 2, nil, nil, nil, rf)
     elseif ct == 11 then
-        Argus2.addTimedCrossFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, nil, nil, 4)
+        Argus2.addTimedCrossFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, nil, nil, 4, nil, nil, nil, nil, nil, rf)
     else
-        Argus2.addTimedCircleFilled(ms, x, y, z, (L > 0 and L or 3), SEG, color, color, nil, 0, nil, nil, nil, 3)
+        Argus2.addTimedCircleFilled(ms, x, y, z, (L > 0 and L or 3), SEG, color, color, nil, 0, nil, nil, nil, 3, nil, nil, nil, rf)
     end
 end
 
