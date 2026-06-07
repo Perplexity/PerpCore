@@ -25,10 +25,10 @@ PerpCore.Config.PartyGroups = PerpCore.Config.PartyGroups or {
 -- Strat selections (set from the PerpGUI "Reactions" tab). Reactions query these to enable
 -- or disable strat-specific behaviour.
 PerpCore.Config.Strats = PerpCore.Config.Strats or {
-    DMUPhase1Arrows = "Default", -- "Default" or "X13"
+    DMUPhase1Arrows = "Default", -- "Default", "X13", or "X13Swap"
 }
 
--- DMU Phase 1 "Arrows Strat" accessor ("Default" or "X13").
+-- DMU Phase 1 "Arrows Strat" accessor ("Default", "X13", or "X13Swap").
 function PerpCore.GetDMUPhase1ArrowsStrat()
     return (PerpCore.Config.Strats and PerpCore.Config.Strats.DMUPhase1Arrows) or "Default"
 end

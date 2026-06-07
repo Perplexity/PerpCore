@@ -73,7 +73,7 @@ PerpGUI.npcFilterString = PerpGUI.npcFilterString or "alive,maxdistance=100"
 -- Boolean toggles (default to specific values only if nil)
 if PerpGUI.drawArrowToNPC == nil then PerpGUI.drawArrowToNPC = false end
 if PerpGUI.drawCardinalArrows == nil then PerpGUI.drawCardinalArrows = false end
-if PerpGUI.filterVisibleOnly == nil then PerpGUI.filterVisibleOnly = true end -- Default ON
+if PerpGUI.filterVisibleOnly == nil then PerpGUI.filterVisibleOnly = true end  -- Default ON
 if PerpGUI.filterShowUnnamed == nil then PerpGUI.filterShowUnnamed = false end -- Default OFF (show unnamed/event objects)
 if PerpGUI.drawArenaCenter == nil then PerpGUI.drawArenaCenter = false end
 if PerpGUI.drawNPCDebugText == nil then PerpGUI.drawNPCDebugText = false end
@@ -87,8 +87,8 @@ if PerpGUI.attackRangeMeleeYalms == nil then PerpGUI.attackRangeMeleeYalms = 3 e
 if PerpGUI.attackRangeRangedYalms == nil then PerpGUI.attackRangeRangedYalms = 25 end
 
 -- Reactions tab: DMU Phase 1 "Arrows Strat" dropdown (1-based index, mirrors PerpCore config)
-PerpGUI.dmuP1ArrowsStratOptions = { [1] = "Default", [2] = "X13 (modified xolo)" }
-PerpGUI.dmuP1ArrowsStratValues  = { [1] = "Default", [2] = "X13" }
+PerpGUI.dmuP1ArrowsStratOptions = { [1] = "Default", [2] = "X13 (modified xolo)", [3] = "X13 (swap letter/number)" }
+PerpGUI.dmuP1ArrowsStratValues  = { [1] = "Default", [2] = "X13", [3] = "X13Swap" }
 if PerpGUI.dmuP1ArrowsStratIndex == nil then PerpGUI.dmuP1ArrowsStratIndex = 1 end
 
 -- Samurai job-specific overlay (Misc / Reactions)
@@ -102,6 +102,15 @@ if PerpGUI.drawDebugArrow == nil then PerpGUI.drawDebugArrow = false end
 PerpGUI.debugArrowDegree = PerpGUI.debugArrowDegree or 0
 PerpGUI.debugArrowLength = PerpGUI.debugArrowLength or 10
 PerpGUI.debugArrowColor = PerpGUI.debugArrowColor or { r = 1.0, g = 0.5, b = 0.0, a = 1.0 } -- Orange default
+
+-- Custom AOE drawings (debug builder): a user-editable list of shapes drawn every frame.
+-- Each entry = { shape (1-based), x, y, z, length, width, heading (degrees), color = {r,g,b,a} }.
+PerpGUI.customAOEs = PerpGUI.customAOEs or {}
+PerpGUI.lastCustomAOEUpdate = PerpGUI.lastCustomAOEUpdate or 0
+if PerpGUI.drawCustomAOEs == nil then PerpGUI.drawCustomAOEs = false end
+-- Shape dropdown (1-based) -> PerpCore.DrawAOEShape castType (2=circle, 10=donut, 4=rect, 3=cone, 11=cross).
+PerpGUI.customAOEShapeOptions   = { [1] = "Circle", [2] = "Donut", [3] = "Rect", [4] = "Cone", [5] = "Cross" }
+PerpGUI.customAOEShapeCastTypes = { [1] = 2, [2] = 10, [3] = 4, [4] = 3, [5] = 11 }
 
 -- Waymark line toggles (default off)
 if PerpGUI.drawWaymarkA == nil then PerpGUI.drawWaymarkA = false end
@@ -548,132 +557,132 @@ function PerpGUI.DrawNPCDebugText()
     -- Draw text on each cached NPC
     for _, npc in ipairs(PerpGUI.npcCache) do
         if (not onlySelected) or npc.id == selId then
-        -- Calculate fresh distance
-        local dist = 0
-        if me and me.pos and npc.pos then
-            local dx = npc.pos.x - me.pos.x
-            local dz = npc.pos.z - me.pos.z
-            dist = math.sqrt(dx * dx + dz * dz)
-        end
-
-        -- Get type name
-        local typeName = PerpGUI.GetEntityTypeName(npc.type)
-
-        -- Build status flags line with clear symbols
-        local aliveStr = npc.alive == true and "[ALIVE]" or (npc.alive == false and "[DEAD]" or "[?]")
-        local tgtStr = npc.targetable and "[TGT]" or "[ - ]"
-        local atkStr = npc.attackable and "[ATK]" or "[ - ]"
-        local visStr = npc.visible and "[VIS]" or "[ - ]"
-        local flagsStr = string.format("%s %s %s %s", aliveStr, tgtStr, atkStr, visStr)
-
-        -- Build HP line
-        local hpStr = "N/A"
-        if npc.hp then
-            if npc.hp.percent then
-                hpStr = string.format("%.0f%% (%d/%d)", npc.hp.percent, npc.hp.current or 0, npc.hp.max or 0)
-            elseif npc.hp.current and npc.hp.max then
-                local pct = npc.hp.max > 0 and (npc.hp.current / npc.hp.max * 100) or 0
-                hpStr = string.format("%.0f%% (%d/%d)", pct, npc.hp.current, npc.hp.max)
-            end
-        end
-
-        -- Build casting/channeling block (always shown so empty/zero fields are visible)
-        local castStr = ""
-        local ci = npc.castinginfo
-        if ci then
-            local channelingId = tonumber(ci.channelingid) or 0
-            local channelTargetId = tonumber(ci.channeltargetid) or 0
-            local castingId = tonumber(ci.castingid) or 0
-            local castTime = tonumber(ci.casttime) or 0
-            local channelTime = tonumber(ci.channeltime) or 0
-            local lastCastId = tonumber(ci.lastcastid) or 0
-            local timeSinceCast = tonumber(ci.timesincecast) or 0
-            local targetCount = ci.castingtargetcount
-
-            local channelingName = PerpGUI.GetActionName(channelingId) or ""
-            local castingName = PerpGUI.GetActionName(castingId) or ""
-            local lastCastName = PerpGUI.GetActionName(lastCastId) or ""
-
-            -- Cast progress (only meaningful while casting)
-            local castProgress = ""
-            if castingId > 0 and castTime > 0 then
-                local pct = math.min(100, (channelTime / castTime) * 100)
-                castProgress = string.format("  [%.0f%%]", pct)
+            -- Calculate fresh distance
+            local dist = 0
+            if me and me.pos and npc.pos then
+                local dx = npc.pos.x - me.pos.x
+                local dz = npc.pos.z - me.pos.z
+                dist = math.sqrt(dx * dx + dz * dz)
             end
 
-            castStr = string.format(
-                "\n-- Cast Info --\n" ..
-                "Channeling: %s [%d]\n" ..
-                "Channel Tgt: %d\n" ..
-                "Cast: %s [%d]%s\n" ..
-                "Cast Time: %.2f\n" ..
-                "Last Cast: %s [%d]\n" ..
-                "Time Since: %d\n" ..
-                "Targets: %s",
-                channelingName ~= "" and channelingName or "-",
-                channelingId,
-                channelTargetId,
-                castingName ~= "" and castingName or "-",
-                castingId,
-                castProgress,
-                castTime,
-                lastCastName ~= "" and lastCastName or "-",
-                lastCastId,
-                timeSinceCast,
-                tostring(targetCount)
+            -- Get type name
+            local typeName = PerpGUI.GetEntityTypeName(npc.type)
+
+            -- Build status flags line with clear symbols
+            local aliveStr = npc.alive == true and "[ALIVE]" or (npc.alive == false and "[DEAD]" or "[?]")
+            local tgtStr = npc.targetable and "[TGT]" or "[ - ]"
+            local atkStr = npc.attackable and "[ATK]" or "[ - ]"
+            local visStr = npc.visible and "[VIS]" or "[ - ]"
+            local flagsStr = string.format("%s %s %s %s", aliveStr, tgtStr, atkStr, visStr)
+
+            -- Build HP line
+            local hpStr = "N/A"
+            if npc.hp then
+                if npc.hp.percent then
+                    hpStr = string.format("%.0f%% (%d/%d)", npc.hp.percent, npc.hp.current or 0, npc.hp.max or 0)
+                elseif npc.hp.current and npc.hp.max then
+                    local pct = npc.hp.max > 0 and (npc.hp.current / npc.hp.max * 100) or 0
+                    hpStr = string.format("%.0f%% (%d/%d)", pct, npc.hp.current, npc.hp.max)
+                end
+            end
+
+            -- Build casting/channeling block (always shown so empty/zero fields are visible)
+            local castStr = ""
+            local ci = npc.castinginfo
+            if ci then
+                local channelingId = tonumber(ci.channelingid) or 0
+                local channelTargetId = tonumber(ci.channeltargetid) or 0
+                local castingId = tonumber(ci.castingid) or 0
+                local castTime = tonumber(ci.casttime) or 0
+                local channelTime = tonumber(ci.channeltime) or 0
+                local lastCastId = tonumber(ci.lastcastid) or 0
+                local timeSinceCast = tonumber(ci.timesincecast) or 0
+                local targetCount = ci.castingtargetcount
+
+                local channelingName = PerpGUI.GetActionName(channelingId) or ""
+                local castingName = PerpGUI.GetActionName(castingId) or ""
+                local lastCastName = PerpGUI.GetActionName(lastCastId) or ""
+
+                -- Cast progress (only meaningful while casting)
+                local castProgress = ""
+                if castingId > 0 and castTime > 0 then
+                    local pct = math.min(100, (channelTime / castTime) * 100)
+                    castProgress = string.format("  [%.0f%%]", pct)
+                end
+
+                castStr = string.format(
+                    "\n-- Cast Info --\n" ..
+                    "Channeling: %s [%d]\n" ..
+                    "Channel Tgt: %d\n" ..
+                    "Cast: %s [%d]%s\n" ..
+                    "Cast Time: %.2f\n" ..
+                    "Last Cast: %s [%d]\n" ..
+                    "Time Since: %d\n" ..
+                    "Targets: %s",
+                    channelingName ~= "" and channelingName or "-",
+                    channelingId,
+                    channelTargetId,
+                    castingName ~= "" and castingName or "-",
+                    castingId,
+                    castProgress,
+                    castTime,
+                    lastCastName ~= "" and lastCastName or "-",
+                    lastCastId,
+                    timeSinceCast,
+                    tostring(targetCount)
+                )
+            end
+
+            -- Build fancy debug text with decorations
+            local debugText = string.format(
+                "~~ %s ~~\n" ..
+                "ID: %s | CID: %s\n" ..
+                "BNPC: %s\n" ..
+                "Type: %s [%d]\n" ..
+                "HP: %s\n" ..
+                "[%s]\n" ..
+                "Dist: %.1fy | R: %.1f\n" ..
+                "Hdg: %.2f\n" ..
+                "Pos: %.1f, %.1f, %.1f%s",
+                npc.name or "???",
+                tostring(npc.id),
+                tostring(npc.contentid or "N/A"),
+                tostring(npc.bnpcid or "N/A"),
+                typeName,
+                npc.type or 0,
+                hpStr,
+                flagsStr,
+                dist,
+                npc.radius or 0,
+                npc.heading or 0,
+                npc.pos and npc.pos.x or 0,
+                npc.pos and npc.pos.y or 0,
+                npc.pos and npc.pos.z or 0,
+                castStr
             )
-        end
 
-        -- Build fancy debug text with decorations
-        local debugText = string.format(
-            "~~ %s ~~\n" ..
-            "ID: %s | CID: %s\n" ..
-            "BNPC: %s\n" ..
-            "Type: %s [%d]\n" ..
-            "HP: %s\n" ..
-            "[%s]\n" ..
-            "Dist: %.1fy | R: %.1f\n" ..
-            "Hdg: %.2f\n" ..
-            "Pos: %.1f, %.1f, %.1f%s",
-            npc.name or "???",
-            tostring(npc.id),
-            tostring(npc.contentid or "N/A"),
-            tostring(npc.bnpcid or "N/A"),
-            typeName,
-            npc.type or 0,
-            hpStr,
-            flagsStr,
-            dist,
-            npc.radius or 0,
-            npc.heading or 0,
-            npc.pos and npc.pos.x or 0,
-            npc.pos and npc.pos.y or 0,
-            npc.pos and npc.pos.z or 0,
-            castStr
-        )
+            -- Sexy colors based on type
+            local color = 0xFFE0E0E0 -- Light gray default
+            if npc.type == 2 then
+                color = 0xFFFF6B6B -- Coral red for monsters
+            elseif npc.type == 3 then
+                color = 0xFF6BCB77 -- Mint green for NPCs
+            elseif npc.type == 7 then
+                color = 0xFF4ECDC4 -- Teal for Event NPCs
+            elseif npc.type == 5 then
+                color = 0xFF95E1D3 -- Seafoam for Aetherytes
+            elseif npc.type == 6 then
+                color = 0xFFFFD93D -- Gold for Gathering nodes
+            end
 
-        -- Sexy colors based on type
-        local color = 0xFFE0E0E0 -- Light gray default
-        if npc.type == 2 then
-            color = 0xFFFF6B6B   -- Coral red for monsters
-        elseif npc.type == 3 then
-            color = 0xFF6BCB77   -- Mint green for NPCs
-        elseif npc.type == 7 then
-            color = 0xFF4ECDC4   -- Teal for Event NPCs
-        elseif npc.type == 5 then
-            color = 0xFF95E1D3   -- Seafoam for Aetherytes
-        elseif npc.type == 6 then
-            color = 0xFFFFD93D   -- Gold for Gathering nodes
-        end
+            -- Highlight selected NPC with bright yellow
+            if npc.id == PerpGUI.selectedNPCId then
+                color = 0xFFFFE66D
+            end
 
-        -- Highlight selected NPC with bright yellow
-        if npc.id == PerpGUI.selectedNPCId then
-            color = 0xFFFFE66D
-        end
-
-        -- Draw text on entity (1000ms duration, with background, +2.5 height).
-        -- Scale is doubled (1.4) when a single NPC is selected, otherwise 0.7.
-        AnyoneCore.addTimedWorldTextOnEnt(1100, debugText, npc.id, color, true, npcScale, 2.5)
+            -- Draw text on entity (1000ms duration, with background, +2.5 height).
+            -- Scale is doubled (1.4) when a single NPC is selected, otherwise 0.7.
+            AnyoneCore.addTimedWorldTextOnEnt(1100, debugText, npc.id, color, true, npcScale, 2.5)
         end
     end
 end
@@ -1126,6 +1135,63 @@ function PerpGUI.DrawDebugArrowFromCenter()
     )
 end
 
+-- Append a new custom AOE entry. Seeds it at the player's position (falls back to arena center)
+-- with sensible defaults so it's immediately visible once drawing is enabled.
+function PerpGUI.AddCustomAOE()
+    local center = PerpGUI.arenaCenter or { x = 100, y = 0, z = 100 }
+    local x, y, z = center.x, center.y, center.z
+    local me = TensorCore and TensorCore.mGetPlayer() or Player
+    if me and me.pos then
+        x, y, z = me.pos.x, me.pos.y, me.pos.z
+    end
+    PerpGUI.customAOEs[#PerpGUI.customAOEs + 1] = {
+        shape   = 1, -- Circle
+        x       = x,
+        y       = y,
+        z       = z,
+        length  = 5,
+        width   = 2,
+        heading = 0,
+        color   = { r = 1.0, g = 0.2, b = 0.2, a = 0.4 },
+    }
+end
+
+-- Draw every custom AOE (called each frame from PerpGUI.Draw). Throttled like the other timed debug
+-- overlays: redraw ~once a second with a slightly longer lifetime so shapes persist without stacking.
+function PerpGUI.DrawCustomAOEs()
+    if not PerpGUI.drawCustomAOEs then return end
+    if not (PerpCore and PerpCore.DrawAOEShape and GUI) then return end
+    if #PerpGUI.customAOEs == 0 then return end
+
+    local now = Now and Now() or 0
+    if (now - (PerpGUI.lastCustomAOEUpdate or 0)) < 900 then return end
+    PerpGUI.lastCustomAOEUpdate = now
+
+    local DRAW_MS = 1000
+    for _, aoe in ipairs(PerpGUI.customAOEs) do
+        local castType = PerpGUI.customAOEShapeCastTypes[aoe.shape or 1] or 2
+        local col = aoe.color or { r = 1, g = 0.2, b = 0.2, a = 0.4 }
+        local color = GUI:ColorConvertFloat4ToU32(col.r, col.g, col.b, col.a)
+
+        -- Use player Y when y is 0 so shapes don't render underground.
+        local drawY = aoe.y or 0
+        if drawY == 0 then
+            local me = TensorCore and TensorCore.mGetPlayer() or Player
+            if me and me.pos then drawY = me.pos.y end
+        end
+
+        PerpCore.DrawAOEShape(
+            color,
+            aoe.x or 0, drawY, aoe.z or 0,
+            castType,
+            aoe.length or 0,
+            aoe.width or 0,
+            math.rad(aoe.heading or 0),
+            DRAW_MS
+        )
+    end
+end
+
 -- Draw arrows for selected NPC (called every frame in Draw)
 function PerpGUI.DrawArrowToSelectedNPC()
     -- Need an NPC selected for any drawing
@@ -1299,6 +1365,143 @@ function PerpGUI.DrawCardinalArrowsFromNPC(npc)
         end
         PerpGUI.lastCardinalTextUpdate = now
     end
+end
+
+-- Custom AOE builder UI (collapsible). Lets you add/edit/remove a list of debug shapes with
+-- per-entry shape, position, size, heading and colour. Drawn each frame by PerpGUI.DrawCustomAOEs.
+function PerpGUI.DrawCustomAOESection()
+    if not GUI:TreeNode("Custom AOEs##customAOE") then return end
+
+    GUI:Spacing()
+    GUI:Dummy(5, 0)
+    GUI:SameLine()
+    PerpGUI.drawCustomAOEs = GUI:Checkbox("Enable##customAOEEnable", PerpGUI.drawCustomAOEs)
+    if GUI:IsItemHovered() then GUI:SetTooltip("Draw all custom AOE shapes below") end
+
+    GUI:SameLine(0, 15)
+    GUI:Button("Add##customAOEAdd", 55, 22)
+    if GUI:IsItemClicked(0) then PerpGUI.AddCustomAOE() end
+    if GUI:IsItemHovered() then GUI:SetTooltip("Add a new AOE at your current position") end
+
+    GUI:SameLine(0, 8)
+    GUI:Button("Clear All##customAOEClear", 75, 22)
+    if GUI:IsItemClicked(0) then PerpGUI.customAOEs = {} end
+
+    GUI:SameLine(0, 12)
+    GUI:TextColored(0.6, 0.6, 0.6, 1, "Count: " .. tostring(#PerpGUI.customAOEs))
+
+    GUI:Spacing()
+
+    local removeIdx = nil
+    for i, aoe in ipairs(PerpGUI.customAOEs) do
+        local sfx = "_caoe_" .. i
+        GUI:Separator()
+
+        -- Shape selector + delete button.
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:TextColored(0.7, 0.85, 1.0, 1, "#" .. i)
+        GUI:SameLine(0, 8)
+        GUI:Text("Shape")
+        GUI:SameLine(0, 6)
+        GUI:PushItemWidth(90)
+        local newShape, shapeChanged = GUI:Combo("##shape" .. sfx, aoe.shape or 1, PerpGUI.customAOEShapeOptions)
+        GUI:PopItemWidth()
+        if shapeChanged and newShape then aoe.shape = newShape end
+
+        GUI:SameLine(0, 10)
+        GUI:PushStyleColor(GUI.Col_Text, 1, 0.5, 0.5, 1)
+        GUI:Button("X##del" .. sfx, 22, 20)
+        GUI:PopStyleColor()
+        if GUI:IsItemClicked(0) then removeIdx = i end
+        if GUI:IsItemHovered() then GUI:SetTooltip("Remove this AOE") end
+
+        -- Position X / Y / Z + a "Me" button to snap to the player.
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:Text("X")
+        GUI:SameLine()
+        GUI:PushItemWidth(60)
+        local nx = GUI:InputFloat("##x" .. sfx, aoe.x or 0, 0, 0, 1)
+        if nx then aoe.x = nx end
+        GUI:PopItemWidth()
+
+        GUI:SameLine(0, 6)
+        GUI:Text("Y")
+        GUI:SameLine()
+        GUI:PushItemWidth(60)
+        local ny = GUI:InputFloat("##y" .. sfx, aoe.y or 0, 0, 0, 1)
+        if ny then aoe.y = ny end
+        GUI:PopItemWidth()
+
+        GUI:SameLine(0, 6)
+        GUI:Text("Z")
+        GUI:SameLine()
+        GUI:PushItemWidth(60)
+        local nz = GUI:InputFloat("##z" .. sfx, aoe.z or 0, 0, 0, 1)
+        if nz then aoe.z = nz end
+        GUI:PopItemWidth()
+
+        GUI:SameLine(0, 8)
+        GUI:Button("Me##pos" .. sfx, 30, 20)
+        if GUI:IsItemClicked(0) then
+            local me = TensorCore and TensorCore.mGetPlayer() or Player
+            if me and me.pos then
+                aoe.x, aoe.y, aoe.z = me.pos.x, me.pos.y, me.pos.z
+            end
+        end
+        if GUI:IsItemHovered() then GUI:SetTooltip("Snap position to your current location") end
+
+        -- Size row: length/radius, optional width/inner, optional heading -- shown per shape.
+        local shape = aoe.shape or 1
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        local lenLabel = (shape == 1 or shape == 4) and "Radius" or "Length"
+        GUI:Text(lenLabel)
+        GUI:SameLine()
+        GUI:PushItemWidth(60)
+        local nl = GUI:InputFloat("##len" .. sfx, aoe.length or 5, 0, 0, 1)
+        if nl then aoe.length = math.max(0, nl) end
+        GUI:PopItemWidth()
+
+        -- Width is the inner radius for donuts, the cross/rect width otherwise.
+        if shape == 2 or shape == 3 or shape == 5 then
+            local wLabel = (shape == 2) and "Inner" or "Width"
+            GUI:SameLine(0, 6)
+            GUI:Text(wLabel)
+            GUI:SameLine()
+            GUI:PushItemWidth(60)
+            local nw = GUI:InputFloat("##wid" .. sfx, aoe.width or 2, 0, 0, 1)
+            if nw then aoe.width = math.max(0, nw) end
+            GUI:PopItemWidth()
+        end
+
+        -- Heading only matters for directional shapes (rect, cone, cross).
+        if shape == 3 or shape == 4 or shape == 5 then
+            GUI:SameLine(0, 6)
+            GUI:Text("Deg")
+            GUI:SameLine()
+            GUI:PushItemWidth(110)
+            local nh = GUI:SliderInt("##hd" .. sfx, aoe.heading or 0, 0, 360)
+            if nh then aoe.heading = nh end
+            GUI:PopItemWidth()
+        end
+
+        -- Colour picker.
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:Text("Color")
+        GUI:SameLine()
+        GUI:ColorEditMode(GUI.ColorEditMode_NoInputs + GUI.ColorEditMode_AlphaBar)
+        local c = aoe.color or { r = 1, g = 0.2, b = 0.2, a = 0.4 }
+        local cr, cg, cb, ca, cchanged = GUI:ColorEdit4("##col" .. sfx, c.r, c.g, c.b, c.a)
+        if cchanged then aoe.color = { r = cr, g = cg, b = cb, a = ca } end
+    end
+
+    if removeIdx then table.remove(PerpGUI.customAOEs, removeIdx) end
+
+    GUI:Spacing()
+    GUI:TreePop()
 end
 
 -- Draw the Debug tab content
@@ -1508,6 +1711,12 @@ function PerpGUI.DrawDebugTab()
         PerpGUI.debugArrowColor = { r = ar, g = ag, b = ab, a = aa }
     end
     if GUI:IsItemHovered() then GUI:SetTooltip("Debug arrow color") end
+
+    -- Row 8: Custom AOE drawings builder
+    GUI:Spacing()
+    GUI:Dummy(5, 0)
+    GUI:SameLine()
+    PerpGUI.DrawCustomAOESection()
 
     GUI:Spacing()
     GUI:Separator()
@@ -1805,6 +2014,29 @@ function PerpGUI.DrawPartyRolesTab()
     if PerpGUI.mousePosition ~= nil and not GUI:IsItemHovered(hoverFlags) then
         PerpGUI.mousePosition = nil
     end
+
+    -- Perspective player for reaction testing (e.g. replays where you are logged in as yourself)
+    if data then
+        GUI:Spacing()
+        GUI:Separator()
+        GUI:Spacing()
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:TextColored(0.7, 0.7, 0.7, 1, "Perspective player (data.perspective):")
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:PushItemWidth(220)
+        data.perspective = data.perspective or ""
+        local newPerspective, changed = GUI:InputText("##perspective", data.perspective)
+        if newPerspective ~= nil then
+            data.perspective = newPerspective
+        end
+        GUI:PopItemWidth()
+        if GUI:IsItemHovered() then
+            GUI:SetTooltip(
+            "Substring match against player names.\nReactions use this instead of your logged-in character.\nMatch a role name above or type part of a replay player's name.")
+        end
+    end
 end
 
 -- Draw the Reactions tab content
@@ -1836,7 +2068,8 @@ function PerpGUI.DrawReactionsTab()
                     end
                 end
                 if GUI:IsItemHovered() then
-                    GUI:SetTooltip("Teleport arrows resolution strat\nDefault draws arrow spots around the intercardinal waymark")
+                    GUI:SetTooltip(
+                    "Teleport arrows resolution strat\nDefault: 2x2 around nearest intercardinal waymark\nX13: anchor on letter + number waymarks per zone\nX13 swap: same as X13 but letter/number anchors flipped (e.g. C/3 on SE)")
                 end
 
                 GUI:Spacing()
@@ -1909,6 +2142,7 @@ function PerpGUI.Draw(event, ticks)
     PerpGUI.DrawPlayerDebug()
     PerpGUI.DrawGroundAOEDebug()
     PerpGUI.DrawWaymarkLines()
+    PerpGUI.DrawCustomAOEs()
 
     if not PerpGUI.open then
         return
