@@ -108,9 +108,22 @@ PerpGUI.debugArrowColor = PerpGUI.debugArrowColor or { r = 1.0, g = 0.5, b = 0.0
 PerpGUI.customAOEs = PerpGUI.customAOEs or {}
 PerpGUI.lastCustomAOEUpdate = PerpGUI.lastCustomAOEUpdate or 0
 if PerpGUI.drawCustomAOEs == nil then PerpGUI.drawCustomAOEs = false end
+if PerpGUI.customAOEClickPlace == nil then PerpGUI.customAOEClickPlace = false end
+PerpGUI.customAOEClickPlaceMode = PerpGUI.customAOEClickPlaceMode or 1 -- 1=Add, 2=Move selected
+PerpGUI.customAOEMoveIndex = PerpGUI.customAOEMoveIndex or 1
+PerpGUI.customAOEClickPlaceModes = { [1] = "Add new", [2] = "Move selected" }
 -- Shape dropdown (1-based) -> PerpCore.DrawAOEShape castType (2=circle, 10=donut, 4=rect, 3=cone, 11=cross).
 PerpGUI.customAOEShapeOptions   = { [1] = "Circle", [2] = "Donut", [3] = "Rect", [4] = "Cone", [5] = "Cross" }
 PerpGUI.customAOEShapeCastTypes = { [1] = 2, [2] = 10, [3] = 4, [4] = 3, [5] = 11 }
+
+-- Map effects explorer (Argus OnMapEffect dev tool)
+PerpGUI.mapEffectsCache = PerpGUI.mapEffectsCache or {}
+PerpGUI.mapEffectSearchFilter = PerpGUI.mapEffectSearchFilter or ""
+PerpGUI.mapEffectSelectedIndex = PerpGUI.mapEffectSelectedIndex or -1
+if PerpGUI.showMapEffectsExplorer == nil then PerpGUI.showMapEffectsExplorer = false end
+if PerpGUI.drawMapEffectWorldText == nil then PerpGUI.drawMapEffectWorldText = false end
+PerpGUI.lastMapEffectWorldTextUpdate = PerpGUI.lastMapEffectWorldTextUpdate or 0
+PerpGUI.mapEffectTypeNames = { [2] = "Model", [4] = "VFX", [6] = "Script", [7] = "Sound" }
 
 -- Waymark line toggles (default off)
 if PerpGUI.drawWaymarkA == nil then PerpGUI.drawWaymarkA = false end
@@ -1135,25 +1148,102 @@ function PerpGUI.DrawDebugArrowFromCenter()
     )
 end
 
--- Append a new custom AOE entry. Seeds it at the player's position (falls back to arena center)
--- with sensible defaults so it's immediately visible once drawing is enabled.
-function PerpGUI.AddCustomAOE()
-    local center = PerpGUI.arenaCenter or { x = 100, y = 0, z = 100 }
-    local x, y, z = center.x, center.y, center.z
-    local me = TensorCore and TensorCore.mGetPlayer() or Player
-    if me and me.pos then
-        x, y, z = me.pos.x, me.pos.y, me.pos.z
+-- Append a new custom AOE entry at the given world position (or player / arena center when omitted).
+function PerpGUI.AddCustomAOEAt(x, y, z)
+    if x == nil or z == nil then
+        local center = PerpGUI.arenaCenter or { x = 100, y = 0, z = 100 }
+        x, y, z = center.x, center.y, center.z
+        local me = TensorCore and TensorCore.mGetPlayer() or Player
+        if me and me.pos then
+            x, y, z = me.pos.x, me.pos.y, me.pos.z
+        end
     end
     PerpGUI.customAOEs[#PerpGUI.customAOEs + 1] = {
         shape   = 1, -- Circle
         x       = x,
-        y       = y,
+        y       = y or 0,
         z       = z,
         length  = 5,
         width   = 2,
         heading = 0,
         color   = { r = 1.0, g = 0.2, b = 0.2, a = 0.4 },
     }
+    PerpGUI.lastClickPlacePos = { x = x, y = y or 0, z = z }
+end
+
+function PerpGUI.AddCustomAOE()
+    PerpGUI.AddCustomAOEAt()
+end
+
+-- Resolve cursor position on the 3D game view to instance/world X/Y/Z.
+-- GetMouseInWorldPos() returns correct duty-instance coords; GetGameCoordsFromMapPosition is open-world only.
+function PerpGUI.GetMouseWorldPos()
+    local function refineY(x, y, z)
+        if y and y ~= 0 then return y end
+        if RayCast then
+            local me = TensorCore and TensorCore.mGetPlayer() or Player
+            local yRef = (me and me.pos and me.pos.y) or ((PerpGUI.arenaCenter or {}).y or 0)
+            local hit, _, hity = RayCast(x, yRef + 50, z, x, yRef - 50, z)
+            if hit and hity then return hity end
+        end
+        local me = TensorCore and TensorCore.mGetPlayer() or Player
+        return (me and me.pos and me.pos.y) or ((PerpGUI.arenaCenter or {}).y or 0)
+    end
+
+    if GetMouseInWorldPos then
+        local wpos = GetMouseInWorldPos()
+        local valid = wpos and wpos.x ~= nil and wpos.z ~= nil
+        if table and table.valid then
+            valid = table.valid(wpos)
+        end
+        if valid then
+            return { x = wpos.x, y = refineY(wpos.x, wpos.y, wpos.z), z = wpos.z }
+        end
+    end
+
+    -- Fallback (open-world map coords — inaccurate in instances).
+    if Hacks and Hacks.GetGameCoordsFromMapPosition and GUI and GUI.GetMousePos then
+        local gameCoords = Hacks:GetGameCoordsFromMapPosition(GUI:GetMousePos())
+        if gameCoords and gameCoords.x ~= nil and gameCoords.z ~= nil then
+            return {
+                x = gameCoords.x,
+                y = refineY(gameCoords.x, gameCoords.y, gameCoords.z),
+                z = gameCoords.z,
+            }
+        end
+    end
+
+    return nil
+end
+
+-- Cyan preview ring at cursor world position when click-to-place mode is enabled.
+function PerpGUI.DrawCustomAOEPlacementPreview()
+    if not PerpGUI.customAOEClickPlace then return end
+    local pos = PerpGUI.GetMouseWorldPos()
+    if pos and Argus and Argus.addCircleFilled and GUI then
+        local previewColor = GUI:ColorConvertFloat4ToU32(0.3, 0.85, 1.0, 0.35)
+        Argus.addCircleFilled(pos.x, pos.y, pos.z, 0.6, 24, previewColor, 0xFF66CCFF)
+    end
+end
+
+-- Right-click on the 3D view to add or move a custom AOE (call after all GUI each frame).
+function PerpGUI.HandleCustomAOEClickPlace()
+    if not PerpGUI.customAOEClickPlace then return end
+    if not (GUI and GUI.IsMouseClicked) then return end
+
+    local pos = PerpGUI.GetMouseWorldPos()
+    if not (GUI:IsMouseClicked(1) and pos) then return end
+
+    if PerpGUI.customAOEClickPlaceMode == 2 then
+        local idx = math.max(1, math.min(PerpGUI.customAOEMoveIndex or 1, #PerpGUI.customAOEs))
+        local aoe = PerpGUI.customAOEs[idx]
+        if aoe then
+            aoe.x, aoe.y, aoe.z = pos.x, pos.y, pos.z
+            PerpGUI.lastClickPlacePos = pos
+        end
+    else
+        PerpGUI.AddCustomAOEAt(pos.x, pos.y, pos.z)
+    end
 end
 
 -- Draw every custom AOE (called each frame from PerpGUI.Draw). Throttled like the other timed debug
@@ -1367,10 +1457,416 @@ function PerpGUI.DrawCardinalArrowsFromNPC(npc)
     end
 end
 
+local function mapEffectShortPath(path)
+    if type(path) ~= "string" then return "Unknown" end
+    return path:match(".*/(.*)") or path
+end
+
+local function mapEffectTypeLabel(rType)
+    return PerpGUI.mapEffectTypeNames[tonumber(rType)] or tostring(rType)
+end
+
+-- Scan active Argus map effects into PerpGUI.mapEffectsCache for the explorer UI.
+function PerpGUI.RefreshMapEffects()
+    local cache = {}
+    if not (Argus and Argus.getNumCurrentMapEffects and Argus.getMapEffectResource) then
+        PerpGUI.mapEffectsCache = cache
+        return
+    end
+
+    local numEffects = Argus.getNumCurrentMapEffects()
+    for i = 0, numEffects - 1 do
+        local res = Argus.getMapEffectResource(i)
+        if res then
+            local resId, resPath, resType, isActive = Argus.getEffectResourceInfo(res)
+            local typeStr = mapEffectTypeLabel(resType)
+
+            local validScriptCount = 0
+            if tonumber(resType) == 6 and Argus.getNumEffectResourceScripts then
+                local rawNum = Argus.getNumEffectResourceScripts(res) or 0
+                for si = 0, rawNum - 1 do
+                    local sName = Argus.getEffectResourceScriptInfo(res, si)
+                    if sName and sName ~= "" then
+                        validScriptCount = validScriptCount + 1
+                    end
+                end
+            end
+
+            local fullSearchString = string.format("index=%d id=%d type=%s active=%s scripts=%d path=%s",
+                i, resId or 0, typeStr, tostring(isActive), validScriptCount, tostring(resPath))
+            local activeTag = isActive and " (ON)" or ""
+            local displayLabel = string.format("[%d] %s%s", i, mapEffectShortPath(resPath), activeTag)
+
+            cache[#cache + 1] = {
+                index = i,
+                label = displayLabel,
+                searchString = string.lower(fullSearchString),
+                isActive = isActive,
+            }
+        end
+    end
+    PerpGUI.mapEffectsCache = cache
+end
+
+local function mapEffectRunningScripts(res)
+    if not (res and Argus.getNumEffectResourceScripts and Argus.getEffectResourceScriptInfo) then
+        return {}
+    end
+    local lines = {}
+    local rawNum = Argus.getNumEffectResourceScripts(res) or 0
+    for si = 0, rawNum - 1 do
+        local sName, _, _, sRunning = Argus.getEffectResourceScriptInfo(res, si)
+        if sName and sName ~= "" then
+            local flag = math.floor(2 ^ si)
+            local mark = sRunning and "RUN" or "off"
+            lines[#lines + 1] = string.format("[%d] flag=%d %s (%s)", si, flag, sName, mark)
+        end
+    end
+    return lines
+end
+
+-- Draw world-text labels at each cached map effect's position (throttled).
+function PerpGUI.DrawMapEffectsWorldText()
+    if not PerpGUI.drawMapEffectWorldText then return end
+    if not (Argus and Argus.getNumCurrentMapEffects and Argus.getMapEffectResource and Argus.getEffectResourcePosition) then return end
+    if not (AnyoneCore and AnyoneCore.addTimedWorldText) then return end
+
+    local numEffects = Argus.getNumCurrentMapEffects() or 0
+    if numEffects == 0 then return end
+
+    local now = Now and Now() or 0
+    if (now - (PerpGUI.lastMapEffectWorldTextUpdate or 0)) < 600 then return end
+    PerpGUI.lastMapEffectWorldTextUpdate = now
+
+    local TEXT_MS = 700
+    local selectedIdx = PerpGUI.mapEffectSelectedIndex
+
+    for i = 0, numEffects - 1 do
+        local res = Argus.getMapEffectResource(i)
+        if res then
+            local x, y, z = Argus.getEffectResourcePosition(res)
+            if x and z then
+                local id, path, rType, isActive = Argus.getEffectResourceInfo(res)
+                local typeStr = mapEffectTypeLabel(rType)
+                local isSelected = (i == selectedIdx)
+                local statusStr = isActive and "ON" or "OFF"
+
+                local lines = {
+                    string.format("[%d] %s  id=%s", i, typeStr, tostring(id or 0)),
+                    string.format("%s  %s", mapEffectShortPath(path), statusStr),
+                    string.format("%.1f, %.1f, %.1f", x, y or 0, z),
+                }
+
+                if isSelected and tonumber(rType) == 6 then
+                    for _, sl in ipairs(mapEffectRunningScripts(res)) do
+                        lines[#lines + 1] = sl
+                    end
+                end
+
+                local color
+                if isSelected then
+                    color = isActive and 0xFF00FFFF or 0xFF8888FF -- cyan / muted cyan
+                elseif isActive then
+                    color = 0xFF66FFCC -- gold (matches OnMapEffect debug)
+                else
+                    color = 0xFF888888 -- grey
+                end
+
+                local scale = isSelected and 1.15 or 0.85
+                AnyoneCore.addTimedWorldText(
+                    TEXT_MS,
+                    table.concat(lines, "\n"),
+                    { x = x, y = (y or 0) + 1.5, z = z },
+                    color,
+                    true,
+                    scale
+                )
+            end
+        end
+    end
+end
+
+-- Collapsible entry point in the Debug tab.
+function PerpGUI.DrawMapEffectsSection()
+    if not GUI:TreeNode("Map Effects##mapEffects") then return end
+
+    GUI:Spacing()
+    GUI:Dummy(5, 0)
+    GUI:SameLine()
+
+    local openLabel = PerpGUI.showMapEffectsExplorer and "Close Explorer" or "Open Explorer"
+    if GUI:Button(openLabel .. "##mapFxOpen", 110, 22) then
+        PerpGUI.showMapEffectsExplorer = not PerpGUI.showMapEffectsExplorer
+        if PerpGUI.showMapEffectsExplorer then
+            PerpGUI.RefreshMapEffects()
+        end
+    end
+    if GUI:IsItemHovered() then
+        GUI:SetTooltip("Open the Map Effects Explorer window\n(inspect Argus map effects and copy reaction conditions)")
+    end
+
+    GUI:SameLine(0, 8)
+    if GUI:Button("Refresh##mapFxRefresh", 65, 22) then
+        PerpGUI.RefreshMapEffects()
+    end
+    if GUI:IsItemHovered() then GUI:SetTooltip("Rescan current map effects") end
+
+    GUI:SameLine(0, 12)
+    GUI:TextColored(0.6, 0.6, 0.6, 1, "Cached: " .. tostring(#PerpGUI.mapEffectsCache))
+
+    GUI:Dummy(5, 0)
+    GUI:SameLine()
+    PerpGUI.drawMapEffectWorldText = GUI:Checkbox("World Text##mapFxWorldText", PerpGUI.drawMapEffectWorldText)
+    if GUI:IsItemHovered() then
+        GUI:SetTooltip("Draw labels in-world at each map effect position\n(selected effect shows script flags)")
+    end
+
+    GUI:Spacing()
+    GUI:TreePop()
+end
+
+-- Dual-pane Map Effects Explorer (separate window; stays open independently of PerpCore window).
+function PerpGUI.DrawMapEffectsExplorerWindow()
+    if not PerpGUI.showMapEffectsExplorer then return end
+
+    GUI:SetNextWindowSize(900, 520, GUI.SetCond_FirstUseEver)
+    local visible, open = GUI:Begin("Map Effects Explorer###PerpMapEffects", PerpGUI.showMapEffectsExplorer)
+    if not open then
+        PerpGUI.showMapEffectsExplorer = false
+    end
+
+    if visible then
+        if GUI:Button("Refresh List##mapFxListRefresh", 100, 24) then
+            PerpGUI.RefreshMapEffects()
+        end
+        GUI:SameLine()
+        GUI:TextColored(0.6, 0.6, 0.6, 1, "Filter:")
+        GUI:SameLine()
+        GUI:PushItemWidth(220)
+        local newFilter = GUI:InputText("##mapFxFilter", PerpGUI.mapEffectSearchFilter)
+        if newFilter ~= nil then
+            PerpGUI.mapEffectSearchFilter = newFilter
+        end
+        GUI:PopItemWidth()
+        GUI:Spacing()
+
+        local filterLower = string.lower(PerpGUI.mapEffectSearchFilter or "")
+        local filteredItems = {}
+        for _, item in ipairs(PerpGUI.mapEffectsCache) do
+            if filterLower == "" or string.find(item.searchString, filterLower, 1, true) then
+                filteredItems[#filteredItems + 1] = item
+            end
+        end
+
+        GUI:Columns(2, "PerpMapEffectsColumns", true)
+        GUI:SetColumnWidth(0, 280)
+
+        GUI:BeginChild("PerpMapFxLeft", 0, 0, true)
+        for _, item in ipairs(filteredItems) do
+            local isSelected = (PerpGUI.mapEffectSelectedIndex == item.index)
+            if isSelected then
+                GUI:PushStyleColor(GUI.Col_Text, 1.0, 0.85, 0.3, 1.0)
+            elseif item.isActive then
+                GUI:PushStyleColor(GUI.Col_Text, 0.9, 0.9, 0.9, 1.0)
+            else
+                GUI:PushStyleColor(GUI.Col_Text, 0.5, 0.5, 0.5, 1.0)
+            end
+            if GUI:Selectable(item.label, isSelected) then
+                PerpGUI.mapEffectSelectedIndex = item.index
+            end
+            GUI:PopStyleColor()
+        end
+        GUI:EndChild()
+
+        GUI:NextColumn()
+
+        GUI:BeginChild("PerpMapFxRight", 0, 0, true)
+        if PerpGUI.mapEffectSelectedIndex ~= -1 and Argus and Argus.getMapEffectResource then
+            local targetRes = Argus.getMapEffectResource(PerpGUI.mapEffectSelectedIndex)
+            if targetRes then
+                local id, path, rType, isActive = Argus.getEffectResourceInfo(targetRes)
+                local rTypeStr = mapEffectTypeLabel(rType)
+                local selIdx = PerpGUI.mapEffectSelectedIndex
+
+                GUI:TextColored(0.95, 0.75, 0.20, 1.0, string.format("Index: %d", selIdx))
+                GUI:SameLine(90)
+                GUI:TextColored(0.40, 0.75, 1.00, 1.0, string.format("ID: %d", id or 0))
+                GUI:SameLine(180)
+                GUI:TextColored(0.95, 0.75, 0.20, 1.0, string.format("Type: %s (%d)", rTypeStr, rType or 0))
+                GUI:SameLine(320)
+                if isActive then
+                    GUI:TextColored(0.30, 0.90, 0.40, 1.0, "ACTIVE")
+                else
+                    GUI:TextColored(0.60, 0.60, 0.60, 1.0, "INACTIVE")
+                end
+
+                GUI:Spacing()
+                GUI:TextColored(0.7, 0.7, 0.7, 1.0, "Path:")
+                GUI:SameLine()
+                GUI:TextColored(1, 1, 1, 1, tostring(path))
+                GUI:SameLine()
+                if GUI:Button("Copy##mapFxPath", 45, 18) and GUI.SetClipboardText then
+                    GUI:SetClipboardText(tostring(path))
+                end
+
+                GUI:Separator()
+                GUI:Spacing()
+                GUI:Text("Actions:")
+                GUI:SameLine()
+                if GUI:Button("Teleport to Me##mapFxTp", 110, 20) then
+                    local p = TensorCore and TensorCore.mGetPlayer and TensorCore.mGetPlayer()
+                    if p and p.pos and Argus.setEffectResourcePosition then
+                        Argus.setEffectResourcePosition(targetRes, p.pos.x, p.pos.y, p.pos.z)
+                    end
+                end
+                GUI:SameLine()
+                if GUI:Button("Turn Off (4)##mapFxOff", 100, 20) and Argus.runMapEffect then
+                    Argus.runMapEffect(selIdx, 0, 4)
+                end
+
+                GUI:Spacing()
+                local px, py, pz = Argus.getEffectResourcePosition(targetRes)
+                if px then
+                    GUI:TextColored(0.4, 0.8, 1.0, 1.0,
+                        string.format("Position: X: %.3f  Y: %.3f  Z: %.3f", px, py, pz))
+                end
+                local sx, sy, sz = Argus.getEffectResourceScale(targetRes)
+                if sx then
+                    GUI:TextColored(0.4, 1.0, 0.4, 1.0,
+                        string.format("Scale: X: %.3f  Y: %.3f  Z: %.3f", sx, sy, sz))
+                end
+                local dx, dy, dz, ux, uy, uz = Argus.getEffectResourceOrientation(targetRes)
+                if dx then
+                    GUI:TextColored(1.0, 0.6, 0.6, 1.0, string.format(
+                        "Dir: %.3f, %.3f, %.3f  |  Up: %.3f, %.3f, %.3f", dx, dy, dz, ux, uy, uz))
+                end
+                local rt, rs = Argus.getEffectResourceRenderInfo(targetRes)
+                if rt then
+                    GUI:TextColored(0.8, 0.8, 0.8, 1.0, string.format(
+                        "Render: %s  |  State: %s", mapEffectTypeLabel(rt), tostring(rs)))
+                end
+
+                if tonumber(rType) == 6 and Argus.getNumEffectResourceScripts then
+                    GUI:Spacing()
+                    GUI:Separator()
+                    GUI:Spacing()
+
+                    local rawNumScripts = Argus.getNumEffectResourceScripts(targetRes) or 0
+                    local validScripts = {}
+                    for si = 0, rawNumScripts - 1 do
+                        local sName, numSub, sRes, sRunning = Argus.getEffectResourceScriptInfo(targetRes, si)
+                        if sName and sName ~= "" then
+                            validScripts[#validScripts + 1] = {
+                                index = si, name = sName, numSub = numSub, res = sRes, running = sRunning,
+                            }
+                        end
+                    end
+
+                    if #validScripts > 0 then
+                        GUI:TextColored(0.95, 0.75, 0.20, 1.0,
+                            "Scripts (" .. tostring(#validScripts) .. ")")
+                        GUI:Spacing()
+
+                        for _, sInfo in ipairs(validScripts) do
+                            local scriptFlag = math.floor(2 ^ sInfo.index)
+                            local sfx = "_mfx_" .. selIdx .. "_" .. sInfo.index
+                            if sInfo.running then
+                                GUI:TextColored(0.3, 0.9, 0.4, 1.0, string.format("[%d] %s  flag=%d",
+                                    sInfo.index, tostring(sInfo.name), scriptFlag))
+                            else
+                                GUI:TextColored(0.9, 0.3, 0.3, 1.0, string.format("[%d] %s  flag=%d",
+                                    sInfo.index, tostring(sInfo.name), scriptFlag))
+                            end
+
+                            GUI:SameLine(340)
+                            if GUI:Button("Run##" .. sfx, 40, 18) and Argus.startEffectResourceScript then
+                                Argus.startEffectResourceScript(targetRes, sInfo.index, 0)
+                            end
+                            GUI:SameLine()
+                            if GUI:Button("Stop##" .. sfx, 40, 18) and Argus.runMapEffect then
+                                Argus.runMapEffect(selIdx, 0, 4)
+                            end
+                            GUI:SameLine()
+                            if GUI:Button("Copy Cond##" .. sfx, 75, 18) and GUI.SetClipboardText then
+                                local cond = string.format(
+                                    "return eventArgs.a1 == %d and eventArgs.a2 == 0 and eventArgs.a3 == %d",
+                                    selIdx, scriptFlag)
+                                GUI:SetClipboardText(cond)
+                            end
+                            if GUI:IsItemHovered() then
+                                GUI:SetTooltip("Copy OnMapEffect condition to clipboard")
+                            end
+
+                            if sInfo.res and sInfo.numSub and sInfo.numSub > 0
+                                and Argus.getEffectResourceScriptSubresource then
+                                for subI = 0, sInfo.numSub - 1 do
+                                    local ssRes = Argus.getEffectResourceScriptSubresource(sInfo.res, subI)
+                                    if ssRes then
+                                        local ssId, ssPath, ssType = Argus.getEffectResourceInfo(ssRes)
+                                        GUI:TextColored(0.5, 0.5, 0.5, 1.0, "    ↳ ")
+                                        GUI:SameLine()
+                                        GUI:TextColored(0.7, 0.7, 0.7, 1.0, string.format("[%s] ID:%d %s",
+                                            mapEffectTypeLabel(ssType), ssId or 0, mapEffectShortPath(ssPath)))
+                                        if GUI:IsItemHovered() then GUI:SetTooltip(tostring(ssPath)) end
+                                    end
+                                end
+                            end
+                            GUI:Spacing()
+                        end
+                    end
+
+                    if Argus.getNumEffectSubresources then
+                        local numFullSub = Argus.getNumEffectSubresources(targetRes) or 0
+                        if numFullSub > 0 then
+                            GUI:Spacing()
+                            GUI:TextColored(0.40, 0.75, 1.00, 1.0,
+                                "Resource Pool (" .. tostring(numFullSub) .. ")")
+                            GUI:Spacing()
+                            for fi = 0, numFullSub - 1 do
+                                local fRes = Argus.getEffectSubresource(targetRes, fi)
+                                if fRes then
+                                    local fId, fPath, fType, fActive = Argus.getEffectResourceInfo(fRes)
+                                    local aColor = fActive and { 0.9, 0.9, 0.9 } or { 0.5, 0.5, 0.5 }
+                                    GUI:TextColored(aColor[1], aColor[2], aColor[3], 1.0, string.format(
+                                        "[%d] %s | ID:%d", fi, mapEffectTypeLabel(fType), fId or 0))
+                                    GUI:SameLine(160)
+                                    GUI:TextColored(0.6, 0.6, 0.6, 1.0, tostring(fPath))
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                GUI:TextColored(1.0, 0.4, 0.4, 1.0, "Resource is nil or despawned.")
+            end
+        else
+            GUI:TextColored(0.5, 0.5, 0.5, 1.0, "Select a map effect from the list.")
+        end
+        GUI:EndChild()
+
+        GUI:Columns(1)
+    end
+
+    GUI:End()
+end
+
 -- Custom AOE builder UI (collapsible). Lets you add/edit/remove a list of debug shapes with
 -- per-entry shape, position, size, heading and colour. Drawn each frame by PerpGUI.DrawCustomAOEs.
 function PerpGUI.DrawCustomAOESection()
     if not GUI:TreeNode("Custom AOEs##customAOE") then return end
+
+    local SLIDER_W = 140
+
+    local function sliderFloat(label, id, val, vmin, vmax)
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:Text(label)
+        GUI:SameLine()
+        GUI:PushItemWidth(SLIDER_W)
+        local nv = GUI:SliderFloat(id, val or 0, vmin, vmax)
+        GUI:PopItemWidth()
+        return nv
+    end
 
     GUI:Spacing()
     GUI:Dummy(5, 0)
@@ -1390,7 +1886,64 @@ function PerpGUI.DrawCustomAOESection()
     GUI:SameLine(0, 12)
     GUI:TextColored(0.6, 0.6, 0.6, 1, "Count: " .. tostring(#PerpGUI.customAOEs))
 
+    GUI:Dummy(5, 0)
+    GUI:SameLine()
+    PerpGUI.customAOEClickPlace = GUI:Checkbox("Click to place##customAOEClick", PerpGUI.customAOEClickPlace)
+    if GUI:IsItemHovered() then
+        GUI:SetTooltip(
+            "Right-click the 3D game view to place AOEs on the arena floor.\n" ..
+            "Uses GetMouseInWorldPos (instance-correct).\n" ..
+            "A cyan preview ring follows your cursor over the arena."
+        )
+    end
+
+    if PerpGUI.customAOEClickPlace then
+        local hoverPos = PerpGUI.GetMouseWorldPos()
+        if hoverPos then
+            GUI:SameLine(0, 8)
+            GUI:TextColored(0.5, 0.75, 0.95, 1, string.format(
+                "Hover: %.1f, %.1f, %.1f", hoverPos.x, hoverPos.y, hoverPos.z
+            ))
+        end
+    end
+
+    if PerpGUI.customAOEClickPlace then
+        GUI:Dummy(5, 0)
+        GUI:SameLine()
+        GUI:Text("Mode")
+        GUI:SameLine()
+        GUI:PushItemWidth(110)
+        local newMode, modeChanged = GUI:Combo("##customAOEClickMode", PerpGUI.customAOEClickPlaceMode or 1, PerpGUI.customAOEClickPlaceModes)
+        GUI:PopItemWidth()
+        if modeChanged and newMode then PerpGUI.customAOEClickPlaceMode = newMode end
+
+        if PerpGUI.customAOEClickPlaceMode == 2 then
+            GUI:SameLine(0, 8)
+            GUI:Text("#")
+            GUI:SameLine()
+            GUI:PushItemWidth(50)
+            local newIdx = GUI:SliderInt("##customAOEMoveIdx", PerpGUI.customAOEMoveIndex or 1, 1, math.max(1, #PerpGUI.customAOEs))
+            GUI:PopItemWidth()
+            if newIdx then PerpGUI.customAOEMoveIndex = newIdx end
+        end
+
+        if PerpGUI.lastClickPlacePos then
+            GUI:Dummy(5, 0)
+            GUI:SameLine()
+            GUI:TextColored(0.5, 0.85, 0.5, 1, string.format(
+                "Last: %.1f, %.1f, %.1f",
+                PerpGUI.lastClickPlacePos.x, PerpGUI.lastClickPlacePos.y, PerpGUI.lastClickPlacePos.z
+            ))
+        end
+    end
+
     GUI:Spacing()
+
+    local me = TensorCore and TensorCore.mGetPlayer() or Player
+    local ref = (me and me.pos) or PerpGUI.arenaCenter or { x = 100, y = 0, z = 100 }
+    local xMin, xMax = ref.x - 80, ref.x + 80
+    local yMin, yMax = ref.y - 15, ref.y + 15
+    local zMin, zMax = ref.z - 80, ref.z + 80
 
     local removeIdx = nil
     for i, aoe in ipairs(PerpGUI.customAOEs) do
@@ -1417,30 +1970,20 @@ function PerpGUI.DrawCustomAOESection()
         if GUI:IsItemHovered() then GUI:SetTooltip("Remove this AOE") end
 
         -- Position X / Y / Z + a "Me" button to snap to the player.
+        local nx = sliderFloat("X", "##x" .. sfx, aoe.x, xMin, xMax)
+        if nx then aoe.x = nx end
+
+        local ny = sliderFloat("Y", "##y" .. sfx, aoe.y, yMin, yMax)
+        if ny then aoe.y = ny end
+
         GUI:Dummy(5, 0)
         GUI:SameLine()
-        GUI:Text("X")
-        GUI:SameLine()
-        GUI:PushItemWidth(60)
-        local nx = GUI:InputFloat("##x" .. sfx, aoe.x or 0, 0, 0, 1)
-        if nx then aoe.x = nx end
-        GUI:PopItemWidth()
-
-        GUI:SameLine(0, 6)
-        GUI:Text("Y")
-        GUI:SameLine()
-        GUI:PushItemWidth(60)
-        local ny = GUI:InputFloat("##y" .. sfx, aoe.y or 0, 0, 0, 1)
-        if ny then aoe.y = ny end
-        GUI:PopItemWidth()
-
-        GUI:SameLine(0, 6)
         GUI:Text("Z")
         GUI:SameLine()
-        GUI:PushItemWidth(60)
-        local nz = GUI:InputFloat("##z" .. sfx, aoe.z or 0, 0, 0, 1)
-        if nz then aoe.z = nz end
+        GUI:PushItemWidth(SLIDER_W)
+        local nz = GUI:SliderFloat("##z" .. sfx, aoe.z or 0, zMin, zMax)
         GUI:PopItemWidth()
+        if nz then aoe.z = nz end
 
         GUI:SameLine(0, 8)
         GUI:Button("Me##pos" .. sfx, 30, 20)
@@ -1454,37 +1997,27 @@ function PerpGUI.DrawCustomAOESection()
 
         -- Size row: length/radius, optional width/inner, optional heading -- shown per shape.
         local shape = aoe.shape or 1
-        GUI:Dummy(5, 0)
-        GUI:SameLine()
         local lenLabel = (shape == 1 or shape == 4) and "Radius" or "Length"
-        GUI:Text(lenLabel)
-        GUI:SameLine()
-        GUI:PushItemWidth(60)
-        local nl = GUI:InputFloat("##len" .. sfx, aoe.length or 5, 0, 0, 1)
+        local nl = sliderFloat(lenLabel, "##len" .. sfx, aoe.length, 0, 80)
         if nl then aoe.length = math.max(0, nl) end
-        GUI:PopItemWidth()
 
         -- Width is the inner radius for donuts, the cross/rect width otherwise.
         if shape == 2 or shape == 3 or shape == 5 then
             local wLabel = (shape == 2) and "Inner" or "Width"
-            GUI:SameLine(0, 6)
-            GUI:Text(wLabel)
-            GUI:SameLine()
-            GUI:PushItemWidth(60)
-            local nw = GUI:InputFloat("##wid" .. sfx, aoe.width or 2, 0, 0, 1)
+            local nw = sliderFloat(wLabel, "##wid" .. sfx, aoe.width, 0, 80)
             if nw then aoe.width = math.max(0, nw) end
-            GUI:PopItemWidth()
         end
 
         -- Heading only matters for directional shapes (rect, cone, cross).
         if shape == 3 or shape == 4 or shape == 5 then
-            GUI:SameLine(0, 6)
+            GUI:Dummy(5, 0)
+            GUI:SameLine()
             GUI:Text("Deg")
             GUI:SameLine()
-            GUI:PushItemWidth(110)
+            GUI:PushItemWidth(SLIDER_W)
             local nh = GUI:SliderInt("##hd" .. sfx, aoe.heading or 0, 0, 360)
-            if nh then aoe.heading = nh end
             GUI:PopItemWidth()
+            if nh then aoe.heading = nh end
         end
 
         -- Colour picker.
@@ -1717,6 +2250,11 @@ function PerpGUI.DrawDebugTab()
     GUI:Dummy(5, 0)
     GUI:SameLine()
     PerpGUI.DrawCustomAOESection()
+
+    GUI:Spacing()
+    GUI:Dummy(5, 0)
+    GUI:SameLine()
+    PerpGUI.DrawMapEffectsSection()
 
     GUI:Spacing()
     GUI:Separator()
@@ -2143,8 +2681,12 @@ function PerpGUI.Draw(event, ticks)
     PerpGUI.DrawGroundAOEDebug()
     PerpGUI.DrawWaymarkLines()
     PerpGUI.DrawCustomAOEs()
+    PerpGUI.DrawCustomAOEPlacementPreview()
+    PerpGUI.DrawMapEffectsWorldText()
+    PerpGUI.DrawMapEffectsExplorerWindow()
 
     if not PerpGUI.open then
+        PerpGUI.HandleCustomAOEClickPlace()
         return
     end
 
@@ -2183,6 +2725,7 @@ function PerpGUI.Draw(event, ticks)
     end
 
     GUI:End()
+    PerpGUI.HandleCustomAOEClickPlace()
 end
 
 -- Initialize function
