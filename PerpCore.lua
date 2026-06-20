@@ -25,10 +25,11 @@ PerpCore.Config.PartyGroups = PerpCore.Config.PartyGroups or {
 -- Strat selections (set from the PerpGUI "Reactions" tab). Reactions query these to enable
 -- or disable strat-specific behaviour.
 PerpCore.Config.Strats = PerpCore.Config.Strats or {
-    DMUPhase1Arrows = "Default", -- "Default", "X13", or "X13Swap"
+    DMUPhase1Arrows = "Default", -- "Default", "MerryGoRound", or "Freaky"
+    DMUPhase3BlackHole = "Markers", -- "Markers" or "KefkaRelative"
 }
 
--- DMU Phase 1 "Arrows Strat" accessor ("Default", "X13", or "X13Swap").
+-- DMU Phase 1 "Arrows Strat" accessor ("Default", "MerryGoRound", or "Freaky").
 function PerpCore.GetDMUPhase1ArrowsStrat()
     return (PerpCore.Config.Strats and PerpCore.Config.Strats.DMUPhase1Arrows) or "Default"
 end
@@ -36,6 +37,28 @@ end
 function PerpCore.SetDMUPhase1ArrowsStrat(value)
     PerpCore.Config.Strats = PerpCore.Config.Strats or {}
     PerpCore.Config.Strats.DMUPhase1Arrows = value or "Default"
+    if PerpSettings and PerpSettings.SaveReactions and not PerpSettings._loading then
+        PerpSettings.SaveReactions()
+    end
+end
+
+-- DMU Phase 3 "Black Hole Strat" accessor ("Markers" or "KefkaRelative").
+function PerpCore.GetDMUPhase3BlackHoleStrat()
+    return (PerpCore.Config.Strats and PerpCore.Config.Strats.DMUPhase3BlackHole) or "Markers"
+end
+
+function PerpCore.SetDMUPhase3BlackHoleStrat(value)
+    PerpCore.Config.Strats = PerpCore.Config.Strats or {}
+    PerpCore.Config.Strats.DMUPhase3BlackHole = value or "Markers"
+    if PerpSettings and PerpSettings.SaveReactions and not PerpSettings._loading then
+        PerpSettings.SaveReactions()
+    end
+end
+
+-- DMU Optimisation / Ninja: 0gcd opener toggle (Reactions tab).
+function PerpCore.DMUNinjaZeroGcdOpener()
+    local ninja = PerpGUI and PerpGUI.dmu and PerpGUI.dmu.optimisation and PerpGUI.dmu.optimisation.ninja
+    return ninja and ninja.zeroGcdOpener or false
 end
 
 -- Arena coordinates for Savage content
@@ -68,6 +91,9 @@ PerpCore.Arenas.M11S = {
 
 function PerpCore.Initialize()
     d("[PerpCore] Initializing...")
+    if PerpSettings and PerpSettings.Load then
+        PerpSettings.Load()
+    end
     -- Job modules are automatically loaded via module.def Files= directive
     d("[PerpCore] Loaded successfully!")
 end
@@ -615,7 +641,7 @@ end
 -- +Z south, so a clockwise rotation maps (dx,dz) -> (-dz, dx). The heading is rotated the same way
 -- by reading the forward vector, rotating it, and converting back to a heading. Returns x, z, heading.
 function PerpCore.RotateAOEClockwise(x, y, z, heading, center)
-    center = center or { x = 100, y = 0, z = 100 }
+    center       = center or { x = 100, y = 0, z = 100 }
     local dx, dz = x - center.x, z - center.z
     local rx     = center.x - dz
     local rz     = center.z + dx
@@ -625,7 +651,8 @@ function PerpCore.RotateAOEClockwise(x, y, z, heading, center)
         if fwd then
             local vx, vz   = fwd.x - x, fwd.z - z
             local rvx, rvz = -vz, vx
-            h = TensorCore.getHeadingToTarget({ x = rx, y = y, z = rz }, { x = rx + rvx, y = y, z = rz + rvz })
+            h              = TensorCore.getHeadingToTarget({ x = rx, y = y, z = rz },
+                { x = rx + rvx, y = y, z = rz + rvz })
         end
     end
     return rx, rz, h
@@ -634,27 +661,32 @@ end
 -- Draw a filled Argus2 shape matching an AOE cast type, in a solid colour. Optional renderFlags
 -- (e.g. Argus2.RenderFlags.FLAG_OCCLUDE) is threaded through to the underlying draw so the same
 -- helper can be used for normal fills and subtractive/occlusion (negative-space) draws.
-function PerpCore.DrawAOEShape(color, x, y, z, castType, length, width, heading, ms, renderFlags)
+function PerpCore.DrawAOEShape(color, x, y, z, castType, length, width, heading, ms, renderFlags, oldDraw)
     if not Argus2 then return end
     local ct  = tonumber(castType) or 0
     local L   = tonumber(length) or 0
     local W   = tonumber(width) or 0
     local h   = tonumber(heading) or 0
     local rf  = renderFlags
+    local od  = oldDraw or false
     local SEG = 48
     if ct == 2 or ct == 5 or ct == 7 or ct == 6 then
-        Argus2.addTimedCircleFilled(ms, x, y, z, L, SEG, color, color, nil, 0, nil, nil, nil, 3, nil, nil, nil, rf)
+        Argus2.addTimedCircleFilled(ms, x, y, z, L, SEG, color, color, nil, 0, nil, nil, nil, 3, nil, od, nil, rf)
     elseif ct == 3 or ct == 13 then
-        Argus2.addTimedConeFilled(ms, x, y, z, L, math.rad(90), h, SEG, color, color, nil, 0, nil, nil, nil, nil, 4, nil, nil, nil, nil, nil, rf)
+        Argus2.addTimedConeFilled(ms, x, y, z, L, math.rad(90), h, SEG, color, color, nil, 0, nil, nil, nil, nil, 4, nil,
+            od, nil, nil, nil, rf)
     elseif ct == 4 or ct == 12 or ct == 8 then
-        Argus2.addTimedRectFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, false, nil, nil, 4, nil, nil, nil, nil, nil, rf)
+        Argus2.addTimedRectFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, false, nil, nil, 4, nil, od, nil,
+            nil, nil, rf)
     elseif ct == 10 then
         local inner = W > 0 and W or (L * 0.4)
-        Argus2.addTimedDonutFilled(ms, x, y, z, inner, L, SEG, color, color, nil, 0, nil, nil, nil, 2, nil, nil, nil, rf)
+        Argus2.addTimedDonutFilled(ms, x, y, z, inner, L, SEG, color, color, nil, 0, nil, nil, nil, 2, nil, od, nil, rf)
     elseif ct == 11 then
-        Argus2.addTimedCrossFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, nil, nil, 4, nil, nil, nil, nil, nil, rf)
+        Argus2.addTimedCrossFilled(ms, x, y, z, L, W, h, color, color, nil, 0, nil, nil, nil, nil, 4, nil, od, nil, nil,
+            nil, rf)
     else
-        Argus2.addTimedCircleFilled(ms, x, y, z, (L > 0 and L or 3), SEG, color, color, nil, 0, nil, nil, nil, 3, nil, nil, nil, rf)
+        Argus2.addTimedCircleFilled(ms, x, y, z, (L > 0 and L or 3), SEG, color, color, nil, 0, nil, nil, nil, 3, nil, od,
+            nil, rf)
     end
 end
 
@@ -671,7 +703,7 @@ function PerpCore.DrawAOESafespots(opts)
     local minCount = opts.minCount or 2
     local color    = opts.color or GUI:ColorConvertFloat4ToU32(0, 1, 0, 1)
 
-    local matches = PerpCore.GetActiveAOEsById(opts.aoeId)
+    local matches  = PerpCore.GetActiveAOEsById(opts.aoeId)
     if #matches < minCount then
         return 0
     end

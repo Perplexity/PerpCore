@@ -2,5 +2,5 @@
 Name=PerpCore
 Dependencies=minionlib,TensorCore
 Version=1
-Files=PerpCore.lua,Lib\PerpNpcFilter.lua,Lib\PerpGUI.lua,Jobs\Ninja.lua
+Files=PerpCore.lua,Lib\PerpSettings.lua,Lib\PerpNpcFilter.lua,Lib\PerpGUI.lua,Jobs\Ninja.lua
 Enabled= 1

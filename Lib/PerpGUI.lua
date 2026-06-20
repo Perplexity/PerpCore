@@ -86,16 +86,37 @@ PerpGUI.attackRangeRingColor = PerpGUI.attackRangeRingColor or { r = 0.2, g = 0.
 if PerpGUI.attackRangeMeleeYalms == nil then PerpGUI.attackRangeMeleeYalms = 3 end
 if PerpGUI.attackRangeRangedYalms == nil then PerpGUI.attackRangeRangedYalms = 25 end
 
--- Reactions tab: DMU Phase 1 "Arrows Strat" dropdown (1-based index, mirrors PerpCore config)
-PerpGUI.dmuP1ArrowsStratOptions = { [1] = "Default", [2] = "X13 (modified xolo)", [3] = "X13 (swap letter/number)" }
-PerpGUI.dmuP1ArrowsStratValues  = { [1] = "Default", [2] = "X13", [3] = "X13Swap" }
-if PerpGUI.dmuP1ArrowsStratIndex == nil then PerpGUI.dmuP1ArrowsStratIndex = 1 end
+-- Reactions tab: DMU settings (content-specific)
+PerpGUI.dmu                      = PerpGUI.dmu or {}
+PerpGUI.dmu.p1ArrowsStratOptions = PerpGUI.dmu.p1ArrowsStratOptions or
+    { [1] = "Default (2x2)", [2] = "Merry-go Round", [3] = "Freaky" }
+PerpGUI.dmu.p1ArrowsStratValues  = PerpGUI.dmu.p1ArrowsStratValues or
+    { [1] = "Default", [2] = "MerryGoRound", [3] = "Freaky" }
+if PerpGUI.dmu.p1ArrowsStratIndex == nil then
+    PerpGUI.dmu.p1ArrowsStratIndex = PerpGUI.dmuP1ArrowsStratIndex or 1
+end
+PerpGUI.dmu.p3BlackHoleStratOptions = PerpGUI.dmu.p3BlackHoleStratOptions or
+    { [1] = "Markers (piR)", [2] = "Kefka Relative (ZsQ)" }
+PerpGUI.dmu.p3BlackHoleStratValues  = PerpGUI.dmu.p3BlackHoleStratValues or { [1] = "Markers", [2] = "KefkaRelative" }
+if PerpGUI.dmu.p3BlackHoleStratIndex == nil then
+    PerpGUI.dmu.p3BlackHoleStratIndex = PerpGUI.dmuP3BlackHoleStratIndex or 1
+end
+PerpGUI.dmu.optimisation = PerpGUI.dmu.optimisation or {}
+PerpGUI.dmu.optimisation.ninja = PerpGUI.dmu.optimisation.ninja or {}
+if PerpGUI.dmu.optimisation.ninja.zeroGcdOpener == nil then
+    PerpGUI.dmu.optimisation.ninja.zeroGcdOpener = PerpGUI.dmu.optimisation.ninja.ninjaZeroGcdOpener
+        or PerpGUI.dmu.optimisation.ninjaZeroGcdOpener
+        or PerpGUI.ninjaZeroGcdOpener
+        or false
+end
 
 -- Samurai job-specific overlay (Misc / Reactions)
 PerpGUI.JOB_SAMURAI = PerpGUI.JOB_SAMURAI or 34
 if PerpGUI.drawSamuraiMidareRange == nil then PerpGUI.drawSamuraiMidareRange = false end
 PerpGUI.midareRangeColor = PerpGUI.midareRangeColor or { r = 0.95, g = 0.25, b = 0.15, a = 0.85 }
 if PerpGUI.midareRangeExtraYalms == nil then PerpGUI.midareRangeExtraYalms = 6 end
+
+PerpGUI.JOB_NINJA = PerpGUI.JOB_NINJA or 30
 
 -- Debug arrow from center settings
 if PerpGUI.drawDebugArrow == nil then PerpGUI.drawDebugArrow = false end
@@ -108,20 +129,23 @@ PerpGUI.debugArrowColor = PerpGUI.debugArrowColor or { r = 1.0, g = 0.5, b = 0.0
 PerpGUI.customAOEs = PerpGUI.customAOEs or {}
 PerpGUI.lastCustomAOEUpdate = PerpGUI.lastCustomAOEUpdate or 0
 if PerpGUI.drawCustomAOEs == nil then PerpGUI.drawCustomAOEs = false end
+if PerpGUI.customAOEUseOldDraws == nil then PerpGUI.customAOEUseOldDraws = false end
 if PerpGUI.customAOEClickPlace == nil then PerpGUI.customAOEClickPlace = false end
-PerpGUI.customAOEClickPlaceMode = PerpGUI.customAOEClickPlaceMode or 1 -- 1=Add, 2=Move selected
-PerpGUI.customAOEMoveIndex = PerpGUI.customAOEMoveIndex or 1
+PerpGUI.customAOEClickPlaceMode  = PerpGUI.customAOEClickPlaceMode or 1 -- 1=Add, 2=Move selected
+PerpGUI.customAOEMoveIndex       = PerpGUI.customAOEMoveIndex or 1
 PerpGUI.customAOEClickPlaceModes = { [1] = "Add new", [2] = "Move selected" }
 -- Shape dropdown (1-based) -> PerpCore.DrawAOEShape castType (2=circle, 10=donut, 4=rect, 3=cone, 11=cross).
-PerpGUI.customAOEShapeOptions   = { [1] = "Circle", [2] = "Donut", [3] = "Rect", [4] = "Cone", [5] = "Cross" }
-PerpGUI.customAOEShapeCastTypes = { [1] = 2, [2] = 10, [3] = 4, [4] = 3, [5] = 11 }
+PerpGUI.customAOEShapeOptions    = { [1] = "Circle", [2] = "Donut", [3] = "Rect", [4] = "Cone", [5] = "Cross" }
+PerpGUI.customAOEShapeCastTypes  = { [1] = 2, [2] = 10, [3] = 4, [4] = 3, [5] = 11 }
 
 -- Map effects explorer (Argus OnMapEffect dev tool)
-PerpGUI.mapEffectsCache = PerpGUI.mapEffectsCache or {}
-PerpGUI.mapEffectSearchFilter = PerpGUI.mapEffectSearchFilter or ""
-PerpGUI.mapEffectSelectedIndex = PerpGUI.mapEffectSelectedIndex or -1
+PerpGUI.mapEffectsCache          = PerpGUI.mapEffectsCache or {}
+PerpGUI.mapEffectSearchFilter    = PerpGUI.mapEffectSearchFilter or ""
+PerpGUI.mapEffectSelectedIndex   = PerpGUI.mapEffectSelectedIndex or -1
 if PerpGUI.showMapEffectsExplorer == nil then PerpGUI.showMapEffectsExplorer = false end
 if PerpGUI.drawMapEffectWorldText == nil then PerpGUI.drawMapEffectWorldText = false end
+if PerpGUI.showNPCInspector == nil then PerpGUI.showNPCInspector = true end
+PerpGUI.lastInspectorNPCId = PerpGUI.lastInspectorNPCId
 PerpGUI.lastMapEffectWorldTextUpdate = PerpGUI.lastMapEffectWorldTextUpdate or 0
 PerpGUI.mapEffectTypeNames = { [2] = "Model", [4] = "VFX", [6] = "Script", [7] = "Sound" }
 
@@ -464,7 +488,7 @@ function PerpGUI.RefreshNPCList(silent)
         end
     end
 
-    local filterStr = PerpGUI.npcFilterString or "alive,maxdistance=100"
+    local filterStr = type(PerpGUI.npcFilterString) == "string" and PerpGUI.npcFilterString or "alive,maxdistance=100"
     local entities = EntityList(filterStr)
     if entities and table.valid(entities) then
         for _, ent in pairs(entities) do
@@ -677,15 +701,15 @@ function PerpGUI.DrawNPCDebugText()
             -- Sexy colors based on type
             local color = 0xFFE0E0E0 -- Light gray default
             if npc.type == 2 then
-                color = 0xFFFF6B6B -- Coral red for monsters
+                color = 0xFFFF6B6B   -- Coral red for monsters
             elseif npc.type == 3 then
-                color = 0xFF6BCB77 -- Mint green for NPCs
+                color = 0xFF6BCB77   -- Mint green for NPCs
             elseif npc.type == 7 then
-                color = 0xFF4ECDC4 -- Teal for Event NPCs
+                color = 0xFF4ECDC4   -- Teal for Event NPCs
             elseif npc.type == 5 then
-                color = 0xFF95E1D3 -- Seafoam for Aetherytes
+                color = 0xFF95E1D3   -- Seafoam for Aetherytes
             elseif npc.type == 6 then
-                color = 0xFFFFD93D -- Gold for Gathering nodes
+                color = 0xFFFFD93D   -- Gold for Gathering nodes
             end
 
             -- Highlight selected NPC with bright yellow
@@ -1277,7 +1301,9 @@ function PerpGUI.DrawCustomAOEs()
             aoe.length or 0,
             aoe.width or 0,
             math.rad(aoe.heading or 0),
-            DRAW_MS
+            DRAW_MS,
+            nil,
+            PerpGUI.customAOEUseOldDraws
         )
     end
 end
@@ -1567,9 +1593,9 @@ function PerpGUI.DrawMapEffectsWorldText()
                 if isSelected then
                     color = isActive and 0xFF00FFFF or 0xFF8888FF -- cyan / muted cyan
                 elseif isActive then
-                    color = 0xFF66FFCC -- gold (matches OnMapEffect debug)
+                    color = 0xFF66FFCC                            -- gold (matches OnMapEffect debug)
                 else
-                    color = 0xFF888888 -- grey
+                    color = 0xFF888888                            -- grey
                 end
 
                 local scale = isSelected and 1.15 or 0.85
@@ -1874,6 +1900,12 @@ function PerpGUI.DrawCustomAOESection()
     PerpGUI.drawCustomAOEs = GUI:Checkbox("Enable##customAOEEnable", PerpGUI.drawCustomAOEs)
     if GUI:IsItemHovered() then GUI:SetTooltip("Draw all custom AOE shapes below") end
 
+    GUI:SameLine(0, 12)
+    PerpGUI.customAOEUseOldDraws = GUI:Checkbox("Old draws##customAOEOldDraws", PerpGUI.customAOEUseOldDraws)
+    if GUI:IsItemHovered() then
+        GUI:SetTooltip("Use Argus old draw mode (overlays on top of terrain/models)")
+    end
+
     GUI:SameLine(0, 15)
     GUI:Button("Add##customAOEAdd", 55, 22)
     if GUI:IsItemClicked(0) then PerpGUI.AddCustomAOE() end
@@ -1913,7 +1945,8 @@ function PerpGUI.DrawCustomAOESection()
         GUI:Text("Mode")
         GUI:SameLine()
         GUI:PushItemWidth(110)
-        local newMode, modeChanged = GUI:Combo("##customAOEClickMode", PerpGUI.customAOEClickPlaceMode or 1, PerpGUI.customAOEClickPlaceModes)
+        local newMode, modeChanged = GUI:Combo("##customAOEClickMode", PerpGUI.customAOEClickPlaceMode or 1,
+            PerpGUI.customAOEClickPlaceModes)
         GUI:PopItemWidth()
         if modeChanged and newMode then PerpGUI.customAOEClickPlaceMode = newMode end
 
@@ -1922,7 +1955,8 @@ function PerpGUI.DrawCustomAOESection()
             GUI:Text("#")
             GUI:SameLine()
             GUI:PushItemWidth(50)
-            local newIdx = GUI:SliderInt("##customAOEMoveIdx", PerpGUI.customAOEMoveIndex or 1, 1, math.max(1, #PerpGUI.customAOEs))
+            local newIdx = GUI:SliderInt("##customAOEMoveIdx", PerpGUI.customAOEMoveIndex or 1, 1,
+                math.max(1, #PerpGUI.customAOEs))
             GUI:PopItemWidth()
             if newIdx then PerpGUI.customAOEMoveIndex = newIdx end
         end
@@ -2037,6 +2071,398 @@ function PerpGUI.DrawCustomAOESection()
     GUI:TreePop()
 end
 
+-- ============================================
+-- NPC Inspector (live entity dump when an NPC is selected)
+-- ============================================
+
+function PerpGUI.GetFreshNPCEntity(id)
+    if not id then return nil end
+    local ent
+    if TensorCore and TensorCore.mGetEntity then
+        ent = TensorCore.mGetEntity(id)
+    end
+    if not ent and EntityList and EntityList.Get then
+        ent = EntityList:Get(id)
+    end
+    return ent
+end
+
+function PerpGUI.FormatInspectorValue(value)
+    if value == nil then return "nil" end
+    local t = type(value)
+    if t == "boolean" then return value and "true" or "false" end
+    if t == "number" then
+        if value ~= value then return "nan" end
+        if math.abs(value) >= 1000000 or (value ~= 0 and math.abs(value) < 0.0001) then
+            return string.format("%.6g", value)
+        end
+        return tostring(value)
+    end
+    if t == "string" then return value ~= "" and value or '""' end
+    if t == "table" then
+        if value.x ~= nil and value.z ~= nil then
+            local y = value.y or 0
+            local h = value.h
+            if h ~= nil then
+                return string.format("(%.3f, %.3f, %.3f, h=%.3f)", value.x, y, value.z, h)
+            end
+            return string.format("(%.3f, %.3f, %.3f)", value.x, y, value.z)
+        end
+        local n = table.size and table.size(value) or #value
+        return string.format("<table, %d entries>", n)
+    end
+    return tostring(value)
+end
+
+function PerpGUI.DrawInspectorField(label, value, indent)
+    indent = indent or 0
+    GUI:Dummy(indent, 0)
+    GUI:SameLine()
+    GUI:TextColored(0.65, 0.65, 0.65, 1, label .. ":")
+    GUI:SameLine(160 + indent)
+    GUI:TextWrapped(PerpGUI.FormatInspectorValue(value))
+end
+
+function PerpGUI.DrawInspectorBar(label, bar)
+    if not bar then
+        PerpGUI.DrawInspectorField(label, nil)
+        return
+    end
+    local cur   = tonumber(bar.current) or 0
+    local max   = tonumber(bar.max) or 0
+    local pct   = tonumber(bar.percent)
+    local extra = bar.extra
+    local text  = string.format("%s / %s", PerpGUI.FormatInspectorValue(cur), PerpGUI.FormatInspectorValue(max))
+    if pct ~= nil then
+        text = text .. string.format(" (%.1f%%)", pct)
+    end
+    if extra ~= nil then
+        text = text .. " extra=" .. PerpGUI.FormatInspectorValue(extra)
+    end
+    PerpGUI.DrawInspectorField(label, text)
+end
+
+function PerpGUI.DrawInspectorSection(title, drawFn)
+    if GUI:TreeNode(title) then
+        drawFn()
+        GUI:TreePop()
+    end
+end
+
+function PerpGUI.DrawInspectorCastingInfo(cinfo)
+    if not cinfo or (table.size and table.size(cinfo) == 0) then
+        GUI:TextColored(0.5, 0.5, 0.5, 1, "  (none)")
+        return
+    end
+
+    local fields = {
+        { "ptr",                  cinfo.ptr and string.format("%X", cinfo.ptr) or cinfo.ptr },
+        { "castingid",            cinfo.castingid },
+        { "castingid (name)",     PerpGUI.GetActionName(cinfo.castingid) },
+        { "casttime",             cinfo.casttime },
+        { "castingtargetcount",   cinfo.castingtargetcount },
+        { "castinginterruptible", cinfo.castinginterruptible },
+        { "lastcastid",           cinfo.lastcastid },
+        { "lastcastid (name)",    PerpGUI.GetActionName(cinfo.lastcastid) },
+        { "timesincecast",        cinfo.timesincecast },
+        { "channelingid",         cinfo.channelingid },
+        { "channelingid (name)",  PerpGUI.GetActionName(cinfo.channelingid) },
+        { "channeltargetid",      cinfo.channeltargetid },
+        { "channeltime",          cinfo.channeltime },
+    }
+    for _, row in ipairs(fields) do
+        PerpGUI.DrawInspectorField(row[1], row[2], 8)
+    end
+
+    local ct = cinfo.castingtargets
+    if ct and table.size and table.size(ct) > 0 then
+        if GUI:TreeNode("castingtargets##npcCastTargets") then
+            for tid, target in pairs(ct) do
+                PerpGUI.DrawInspectorField("target " .. tostring(tid), target, 8)
+            end
+            GUI:TreePop()
+        end
+    end
+end
+
+function PerpGUI.DrawInspectorBuffs(buffs)
+    if not buffs or (table.size and table.size(buffs) == 0) then
+        GUI:TextColored(0.5, 0.5, 0.5, 1, "  (none)")
+        return
+    end
+
+    local list = {}
+    for _, b in pairs(buffs) do
+        if b then list[#list + 1] = b end
+    end
+    table.sort(list, function(a, b)
+        return (tonumber(a.slot) or 0) < (tonumber(b.slot) or 0)
+    end)
+
+    for i, b in ipairs(list) do
+        local title = string.format("[%s] %s (id %s)##npcBuff%d",
+            tostring(b.slot or "?"), tostring(b.name or "?"), tostring(b.id or "?"), i)
+        if GUI:TreeNode(title) then
+            PerpGUI.DrawInspectorField("id", b.id, 8)
+            PerpGUI.DrawInspectorField("name", b.name, 8)
+            PerpGUI.DrawInspectorField("duration", b.duration, 8)
+            PerpGUI.DrawInspectorField("stacks", b.stacks, 8)
+            PerpGUI.DrawInspectorField("slot", b.slot, 8)
+            PerpGUI.DrawInspectorField("ownerid", b.ownerid, 8)
+            PerpGUI.DrawInspectorField("isbuff", b.isbuff, 8)
+            PerpGUI.DrawInspectorField("isdebuff", b.isdebuff, 8)
+            PerpGUI.DrawInspectorField("dispellable", b.dispellable, 8)
+            if b.ptr then
+                PerpGUI.DrawInspectorField("ptr", string.format("%X", b.ptr), 8)
+            end
+            if b.ptr2 then
+                PerpGUI.DrawInspectorField("ptr2", string.format("%X", b.ptr2), 8)
+            end
+            GUI:TreePop()
+        end
+    end
+end
+
+function PerpGUI.DrawInspectorTethers(entId)
+    local lines = {}
+    if Argus and Argus.getTethersOnEnt then
+        local tethers = Argus.getTethersOnEnt(entId)
+        if tethers then
+            for i = 1, #tethers do
+                local t = tethers[i]
+                lines[#lines + 1] = string.format("out #%d: type=%s partner=%s {%s}",
+                    i, tostring(t.type), tostring(t.partnerid), PerpGUI.FormatInspectorValue(t))
+            end
+        end
+    end
+    if Argus and Argus.getCurrentTethers then
+        local all = Argus.getCurrentTethers()
+        if all then
+            for sourceId, ts in pairs(all) do
+                if ts then
+                    for i = 1, #ts do
+                        local t = ts[i]
+                        if t and (sourceId == entId or t.targetid == entId or t.partnerid == entId) then
+                            lines[#lines + 1] = string.format("global src=%s tgt=%s type=%s {%s}",
+                                tostring(sourceId), tostring(t.targetid or t.partnerid),
+                                tostring(t.type), PerpGUI.FormatInspectorValue(t))
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if #lines == 0 then
+        GUI:TextColored(0.5, 0.5, 0.5, 1, "  (none)")
+        return
+    end
+    for _, line in ipairs(lines) do
+        GUI:TextWrapped("  " .. line)
+    end
+end
+
+function PerpGUI.DrawInspectorExternal(ent)
+    if Argus and Argus.getEntityModel then
+        local ok, model = pcall(Argus.getEntityModel, ent.id)
+        PerpGUI.DrawInspectorField("Argus model id", ok and model or "error")
+    end
+    if Argus and Argus.getEntityAuras then
+        local ok, p, a1, a2 = pcall(Argus.getEntityAuras, ent.id)
+        if ok then
+            PerpGUI.DrawInspectorField("Argus aura primary", p)
+            PerpGUI.DrawInspectorField("Argus aura 1", a1)
+            PerpGUI.DrawInspectorField("Argus aura 2", a2)
+        else
+            PerpGUI.DrawInspectorField("Argus auras", "error")
+        end
+    end
+    if TensorCore and TensorCore.getEntitySpeed then
+        local ok, speed = pcall(TensorCore.getEntitySpeed, ent.id)
+        PerpGUI.DrawInspectorField("TensorCore speed", ok and speed or "error")
+    end
+end
+
+function PerpGUI.DrawInspectorKnownFields(ent)
+    local fields = {
+        "ptr", "id", "name", "contentid", "type", "chartype", "status", "level", "job",
+        "bnpcid", "subcontentid", "modelid", "iconid", "fateid", "targetid", "ownerid",
+        "claimedbyid", "radius", "hitradius", "distance", "distance2d", "pathdistance",
+        "aggro", "aggropercentage", "attackable", "aggressive", "friendly", "incombat",
+        "interactable", "targetable", "alive", "visible", "cangather", "onmesh", "los", "los2",
+        "isreachable", "ismounted", "action", "lastaction", "marker", "headMarker", "tp",
+        "pettype", "chocobostate", "spearfishstate", "gatherattempts", "gatherattemptsmax",
+        "grandcompany", "grandcompanyrank", "onlinestatus", "currentworld", "homeworld",
+        "pvpteam", "role", "hasaggro", "revivestate", "combotimeremain", "lastcomboid",
+    }
+    for _, key in ipairs(fields) do
+        local ok, value = pcall(function() return ent[key] end)
+        if ok and value ~= nil then
+            PerpGUI.DrawInspectorField(key, value, 8)
+        end
+    end
+end
+
+function PerpGUI.DrawInspectorRawPairs(ent)
+    local ok, _ = pcall(function()
+        for k, v in pairs(ent) do
+            PerpGUI.DrawInspectorField(tostring(k), v, 8)
+        end
+    end)
+    if not ok then
+        GUI:TextColored(0.5, 0.5, 0.5, 1, "  Entity does not support pairs() — see Known Fields above.")
+    end
+end
+
+function PerpGUI.DrawNPCInspectorContent(ent)
+    PerpGUI.DrawInspectorSection("Identity##npcInsIdentity", function()
+        PerpGUI.DrawInspectorField("name", ent.name)
+        PerpGUI.DrawInspectorField("id", ent.id)
+        PerpGUI.DrawInspectorField("contentid", ent.contentid)
+        PerpGUI.DrawInspectorField("bnpcid", ent.bnpcid)
+        PerpGUI.DrawInspectorField("type", ent.type)
+        PerpGUI.DrawInspectorField("type (label)", PerpGUI.GetEntityTypeName(ent.type))
+        PerpGUI.DrawInspectorField("chartype", ent.chartype)
+        PerpGUI.DrawInspectorField("status", ent.status)
+        PerpGUI.DrawInspectorField("level", ent.level)
+        PerpGUI.DrawInspectorField("iconid", ent.iconid)
+        PerpGUI.DrawInspectorField("fateid", ent.fateid)
+        if ent.ptr then
+            PerpGUI.DrawInspectorField("ptr", string.format("%X", ent.ptr))
+        end
+    end)
+
+    PerpGUI.DrawInspectorSection("Position & Size##npcInsPos", function()
+        PerpGUI.DrawInspectorField("pos", ent.pos)
+        if ent.meshpos then
+            PerpGUI.DrawInspectorField("meshpos", ent.meshpos)
+            PerpGUI.DrawInspectorField("meshpos.distance", ent.meshpos.distance)
+            PerpGUI.DrawInspectorField("meshpos.meshdistance", ent.meshpos.meshdistance)
+        end
+        if ent.cubepos and table.valid and table.valid(ent.cubepos) then
+            PerpGUI.DrawInspectorField("cubepos", ent.cubepos)
+        end
+        PerpGUI.DrawInspectorField("hitradius", ent.hitradius)
+        PerpGUI.DrawInspectorField("radius", ent.radius)
+        PerpGUI.DrawInspectorField("distance", ent.distance)
+        PerpGUI.DrawInspectorField("distance2d", ent.distance2d)
+        PerpGUI.DrawInspectorField("pathdistance", ent.pathdistance)
+        PerpGUI.DrawInspectorField("onmesh", ent.onmesh)
+        PerpGUI.DrawInspectorField("isreachable", ent.isreachable)
+        PerpGUI.DrawInspectorField("los", ent.los)
+        PerpGUI.DrawInspectorField("los2", ent.los2)
+    end)
+
+    PerpGUI.DrawInspectorSection("Combat & Flags##npcInsCombat", function()
+        PerpGUI.DrawInspectorField("hp", ent.hp and string.format("%s / %s (%.1f%%)",
+            tostring(ent.hp.current), tostring(ent.hp.max), tonumber(ent.hp.percent) or 0) or nil)
+        PerpGUI.DrawInspectorField("alive", ent.alive)
+        PerpGUI.DrawInspectorField("attackable", ent.attackable)
+        PerpGUI.DrawInspectorField("aggressive", ent.aggressive)
+        PerpGUI.DrawInspectorField("friendly", ent.friendly)
+        PerpGUI.DrawInspectorField("incombat", ent.incombat)
+        PerpGUI.DrawInspectorField("aggro", ent.aggro)
+        PerpGUI.DrawInspectorField("aggropercentage", ent.aggropercentage)
+        PerpGUI.DrawInspectorField("targetable", ent.targetable)
+        PerpGUI.DrawInspectorField("visible", ent.visible)
+        PerpGUI.DrawInspectorField("interactable", ent.interactable)
+        PerpGUI.DrawInspectorField("targetid", ent.targetid)
+        PerpGUI.DrawInspectorField("ownerid", ent.ownerid)
+        PerpGUI.DrawInspectorField("claimedbyid", ent.claimedbyid)
+        PerpGUI.DrawInspectorField("marker", ent.marker)
+        PerpGUI.DrawInspectorField("headMarker", ent.headMarker)
+    end)
+
+    PerpGUI.DrawInspectorSection("Resources##npcInsBars", function()
+        PerpGUI.DrawInspectorBar("hp", ent.hp)
+        PerpGUI.DrawInspectorBar("mp", ent.mp)
+        PerpGUI.DrawInspectorBar("cp", ent.cp)
+        PerpGUI.DrawInspectorBar("gp", ent.gp)
+        PerpGUI.DrawInspectorField("tp", ent.tp)
+    end)
+
+    PerpGUI.DrawInspectorSection("Casting & Actions##npcInsCast", function()
+        PerpGUI.DrawInspectorField("action", ent.action)
+        PerpGUI.DrawInspectorField("lastaction", ent.lastaction)
+        PerpGUI.DrawInspectorCastingInfo(ent.castinginfo)
+    end)
+
+    PerpGUI.DrawInspectorSection("Buffs & Debuffs##npcInsBuffs", function()
+        PerpGUI.DrawInspectorBuffs(ent.buffs)
+    end)
+
+    PerpGUI.DrawInspectorSection("Tethers##npcInsTethers", function()
+        PerpGUI.DrawInspectorTethers(ent.id)
+    end)
+
+    PerpGUI.DrawInspectorSection("Argus / TensorCore##npcInsExternal", function()
+        PerpGUI.DrawInspectorExternal(ent)
+    end)
+
+    if ent.eurekainfo and table.size and table.size(ent.eurekainfo) > 0 then
+        PerpGUI.DrawInspectorSection("Eureka Info##npcInsEureka", function()
+            PerpGUI.DrawInspectorField("level", ent.eurekainfo.level, 8)
+            PerpGUI.DrawInspectorField("element", ent.eurekainfo.element, 8)
+        end)
+    end
+
+    PerpGUI.DrawInspectorSection("All Known Fields##npcInsKnown", function()
+        PerpGUI.DrawInspectorKnownFields(ent)
+    end)
+
+    PerpGUI.DrawInspectorSection("Raw Entity Dump##npcInsRaw", function()
+        PerpGUI.DrawInspectorRawPairs(ent)
+    end)
+end
+
+-- Floating inspector window; opens automatically when an NPC is selected.
+function PerpGUI.DrawSelectedNPCInspectorWindow()
+    local selId = PerpGUI.selectedNPCId
+    if not selId then
+        PerpGUI.lastInspectorNPCId = nil
+        return
+    end
+
+    if selId ~= PerpGUI.lastInspectorNPCId then
+        PerpGUI.showNPCInspector = true
+        PerpGUI.lastInspectorNPCId = selId
+    end
+    if not PerpGUI.showNPCInspector then return end
+
+    local ent = PerpGUI.GetFreshNPCEntity(selId)
+    local title = ent and ent.name and ent.name ~= "" and ent.name or ("Entity " .. tostring(selId))
+
+    GUI:SetNextWindowSize(520, 640, GUI.SetCond_FirstUseEver)
+    local visible, open = GUI:Begin("NPC Inspector — " .. title .. "###PerpNPCInspector", PerpGUI.showNPCInspector)
+    PerpGUI.showNPCInspector = open
+
+    if visible then
+        GUI:TextColored(0.6, 0.8, 1, 1, "Live entity data (refreshes every frame)")
+        GUI:SameLine()
+        if GUI:SmallButton("Refresh List##npcInsRefresh") then
+            PerpGUI.RefreshNPCList(true)
+        end
+        GUI:SameLine()
+        if GUI:SmallButton("Copy ID##npcInsCopyId") then
+            if GUI.SetClipboardText then
+                GUI:SetClipboardText(tostring(selId))
+            end
+        end
+
+        if not ent then
+            GUI:Spacing()
+            GUI:TextColored(1, 0.4, 0.4, 1, "Entity not found (despawned or out of range).")
+            GUI:Text("ID: " .. tostring(selId))
+        else
+            GUI:Separator()
+            GUI:BeginChild("##npcInspectorScroll", 0, 0, true)
+            PerpGUI.DrawNPCInspectorContent(ent)
+            GUI:EndChild()
+        end
+    end
+
+    GUI:End()
+end
+
 -- Draw the Debug tab content
 function PerpGUI.DrawDebugTab()
     GUI:Spacing()
@@ -2056,9 +2482,10 @@ function PerpGUI.DrawDebugTab()
     GUI:Button("Clear", 50, 25)
     if GUI:IsItemClicked(0) then
         PerpGUI.selectedNPCId = nil
+        PerpGUI.showNPCInspector = false
+        PerpGUI.lastInspectorNPCId = nil
         PerpGUI.drawArrowToNPC = false
         PerpGUI.drawCardinalArrows = false
-        d("[PerpGUI] Selection cleared")
     end
 
     -- Row 2: Drawing checkboxes
@@ -2285,10 +2712,10 @@ function PerpGUI.DrawDebugTab()
     GUI:TextColored(0.7, 0.7, 0.7, 1, "Filter:")
     GUI:SameLine()
     GUI:PushItemWidth(280)
-    local changed, newFilter = GUI:InputText("##NPCFilter", PerpGUI.npcFilterString or "alive,maxdistance=100",
+    local newFilter, changed = GUI:InputText("##NPCFilter", PerpGUI.npcFilterString or "alive,maxdistance=100",
         GUI.InputTextFlags_EnterReturnsTrue)
     GUI:PopItemWidth()
-    if changed and newFilter then
+    if changed and newFilter ~= nil then
         PerpGUI.npcFilterString = newFilter
         PerpGUI.RefreshNPCList()
         d("[PerpGUI] Filter updated: " .. newFilter)
@@ -2313,10 +2740,11 @@ function PerpGUI.DrawDebugTab()
     for i, npc in ipairs(PerpGUI.npcCache) do
         local isSelected = (npc.id == PerpGUI.selectedNPCId)
 
-        -- Selectable row
+        -- Selectable row (Minion returns true every frame while selected, not just on click)
         if GUI:Selectable("##npc_" .. tostring(npc.id), isSelected, 0, 340, 0) then
-            PerpGUI.selectedNPCId = npc.id
-            d("[PerpGUI] Selected NPC: " .. npc.name .. " (ID: " .. tostring(npc.id) .. ")")
+            if PerpGUI.selectedNPCId ~= npc.id then
+                PerpGUI.selectedNPCId = npc.id
+            end
         end
 
         -- Draw content on top
@@ -2366,31 +2794,9 @@ function PerpGUI.DrawDebugTab()
 
     GUI:ListBoxFooter()
 
-    -- Selected NPC details
     if PerpGUI.selectedNPCId then
         GUI:Spacing()
-        GUI:Separator()
-        GUI:Spacing()
-
-        local selectedNPC = PerpGUI.FindNPCById(PerpGUI.selectedNPCId)
-        if selectedNPC then
-            GUI:Dummy(5, 0)
-            GUI:SameLine()
-            GUI:TextColored(0.7, 0.7, 0.7, 1, "Details:")
-
-            GUI:Dummy(5, 0)
-            GUI:SameLine()
-            GUI:Text("ID: " .. tostring(selectedNPC.id))
-            GUI:SameLine(150)
-            GUI:Text("ContentID: " .. tostring(selectedNPC.contentid or "N/A"))
-
-            if selectedNPC.pos then
-                GUI:Dummy(5, 0)
-                GUI:SameLine()
-                GUI:Text(string.format("Pos: %.1f, %.1f, %.1f",
-                    selectedNPC.pos.x or 0, selectedNPC.pos.y or 0, selectedNPC.pos.z or 0))
-            end
-        end
+        GUI:TextColored(0.5, 0.85, 0.55, 1, "NPC Inspector window is open for the selected entity.")
     end
 end
 
@@ -2572,7 +2978,7 @@ function PerpGUI.DrawPartyRolesTab()
         GUI:PopItemWidth()
         if GUI:IsItemHovered() then
             GUI:SetTooltip(
-            "Substring match against player names.\nReactions use this instead of your logged-in character.\nMatch a role name above or type part of a replay player's name.")
+                "Substring match against player names.\nReactions use this instead of your logged-in character.\nMatch a role name above or type part of a replay player's name.")
         end
     end
 end
@@ -2597,17 +3003,66 @@ function PerpGUI.DrawReactionsTab()
                 GUI:SameLine(0, 8)
                 GUI:PushItemWidth(180)
                 local newIdx, changed = GUI:Combo("##dmuP1ArrowsStrat",
-                    PerpGUI.dmuP1ArrowsStratIndex, PerpGUI.dmuP1ArrowsStratOptions)
+                    PerpGUI.dmu.p1ArrowsStratIndex, PerpGUI.dmu.p1ArrowsStratOptions)
                 GUI:PopItemWidth()
                 if changed and newIdx then
-                    PerpGUI.dmuP1ArrowsStratIndex = newIdx
+                    PerpGUI.dmu.p1ArrowsStratIndex = newIdx
                     if PerpCore and PerpCore.SetDMUPhase1ArrowsStrat then
-                        PerpCore.SetDMUPhase1ArrowsStrat(PerpGUI.dmuP1ArrowsStratValues[newIdx] or "Default")
+                        PerpCore.SetDMUPhase1ArrowsStrat(PerpGUI.dmu.p1ArrowsStratValues[newIdx] or "Default")
                     end
                 end
                 if GUI:IsItemHovered() then
                     GUI:SetTooltip(
-                    "Teleport arrows resolution strat\nDefault: 2x2 around nearest intercardinal waymark\nX13: anchor on letter + number waymarks per zone\nX13 swap: same as X13 but letter/number anchors flipped (e.g. C/3 on SE)")
+                        "Teleport arrows resolution strat\nDefault (2x2): 2x2 grid around nearest intercardinal waymark\nMerry-go Round: fixed clockwise square spots per debuff pair\nFreaky: Merry-go Round with cardinal spots offset toward center")
+                end
+
+                GUI:Spacing()
+                GUI:TreePop()
+            end
+
+            -- Phase 3
+            if GUI:TreeNode("Phase 3##reactions_dmu_p3") then
+                GUI:Spacing()
+
+                GUI:Text("Black Hole Strat")
+                GUI:SameLine(0, 8)
+                GUI:PushItemWidth(180)
+                local newP3Idx, p3Changed = GUI:Combo("##dmuP3BlackHoleStrat",
+                    PerpGUI.dmu.p3BlackHoleStratIndex, PerpGUI.dmu.p3BlackHoleStratOptions)
+                GUI:PopItemWidth()
+                if p3Changed and newP3Idx then
+                    PerpGUI.dmu.p3BlackHoleStratIndex = newP3Idx
+                    if PerpCore and PerpCore.SetDMUPhase3BlackHoleStrat then
+                        PerpCore.SetDMUPhase3BlackHoleStrat(PerpGUI.dmu.p3BlackHoleStratValues[newP3Idx] or "Markers")
+                    end
+                end
+                if GUI:IsItemHovered() then
+                    GUI:SetTooltip(
+                        "Black Hole tether orb resolution strat\nMarkers (piR): A/B/C/D waymark priority\nKefka Relative (ZsQ): 1st/2nd/3rd orb clockwise from big Kefka facing")
+                end
+
+                GUI:Spacing()
+                GUI:TreePop()
+            end
+
+            -- Optimisation
+            if GUI:TreeNode("Optimisation##reactions_dmu_optim") then
+                GUI:Spacing()
+
+                local ninjaIcon = PerpGUI.GetJobIconPath(PerpGUI.JOB_NINJA, nil)
+                GUI:Image(ninjaIcon, 20, 20)
+                GUI:SameLine(0, 6)
+                if GUI:TreeNode("Ninja##reactions_dmu_ninja") then
+                    GUI:Spacing()
+                    local prevZeroGcd = PerpGUI.dmu.optimisation.ninja.zeroGcdOpener
+                    PerpGUI.dmu.optimisation.ninja.zeroGcdOpener = GUI:Checkbox(
+                        "0gcd Opener##ninjaZeroGcdOpener", PerpGUI.dmu.optimisation.ninja.zeroGcdOpener)
+                    if PerpGUI.dmu.optimisation.ninja.zeroGcdOpener ~= prevZeroGcd
+                        and PerpSettings and PerpSettings.SaveReactions then
+                        PerpSettings.SaveReactions()
+                    end
+                    GUI:Spacing()
+                    GUI:TreePop()
                 end
 
                 GUI:Spacing()
@@ -2684,6 +3139,7 @@ function PerpGUI.Draw(event, ticks)
     PerpGUI.DrawCustomAOEPlacementPreview()
     PerpGUI.DrawMapEffectsWorldText()
     PerpGUI.DrawMapEffectsExplorerWindow()
+    PerpGUI.DrawSelectedNPCInspectorWindow()
 
     if not PerpGUI.open then
         PerpGUI.HandleCustomAOEClickPlace()
